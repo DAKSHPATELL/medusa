@@ -274,7 +274,7 @@ export default function App() {
           <div className="panel-header">
             <div className="panel-title">
               <span className="icon">🎙️</span>
-              Live Translate — Call Transcript
+              Live Translate — Agent ↔ Sender Call
             </div>
             <div className="panel-actions">
               <select
@@ -296,19 +296,19 @@ export default function App() {
           {transcripts.length === 0 ? (
             <div className="transcript-empty">
               <span className="icon">🌐</span>
-              <p>Start a call to see live translated transcripts</p>
+              <p>ClearBorder's agent calls the sender directly — no broker needed</p>
             </div>
           ) : (
             <div className="transcript-feed" ref={feedRef}>
               {transcripts.map((t, i) => (
                 <div key={i} className={`transcript-entry ${t.direction}`}>
                   <div className="transcript-avatar">
-                    {t.direction === "in" ? "🇨🇳" : "🇬🇧"}
+                    {t.direction === "in" ? "🇨🇳" : "🤖"}
                   </div>
                   <div className="transcript-content">
                     <div className="transcript-meta">
                       <span className="transcript-speaker">
-                        {t.direction === "in" ? "Shipper (Original)" : "Translation"}
+                        {t.direction === "in" ? "Sender (Original)" : "ClearBorder Agent"}
                       </span>
                       <span className="transcript-time">{formatTime(t.timestamp)}</span>
                     </div>
@@ -352,7 +352,7 @@ export default function App() {
             {!isCallActive ? (
               <button className="btn primary" onClick={startCall} id="startCallBtn">
                 <span className="icon">📞</span>
-                Start Demo Call
+                Call Sender
               </button>
             ) : (
               <button className="btn danger" onClick={endCall} id="endCallBtn">
@@ -381,7 +381,7 @@ export default function App() {
           <div className="case-panel-content">
             {!caseFile ? (
               <div className="doc-empty">
-                Start a call to create a CaseFile
+                Call a sender to start building a CaseFile
               </div>
             ) : (
               <>

@@ -60,7 +60,7 @@ export default function App() {
             </div>
           </div>
           <div className="user-info">
-            Logged in as: <strong>Broker M. Laurent</strong> · Session: 4h 12m
+            Logged in as: <strong>ClearBorder Agent</strong> · Automated Session · <span style={{ opacity: 0.7 }}>🔒 TLS 1.3</span>
           </div>
         </div>
         <nav className="portal-nav">
@@ -284,8 +284,9 @@ export default function App() {
 
       {/* Footer */}
       <footer className="portal-footer">
-        European Union Customs Service — Single Window Portal v4.2.1<br />
-        © 2026 EUCS. This is a demonstration environment. No actual customs declarations are processed.
+        European Union Customs Service — Single Window Portal v4.2.1 — Environment: PRODUCTION<br />
+        © 2026 EUCS. Secured connection via TLS 1.3. Unauthorized access is prohibited under EU Regulation 2019/1020.<br />
+        <span style={{ opacity: 0.6 }}>This is a demonstration environment. No actual customs declarations are processed.</span>
       </footer>
 
       {/* Toast */}
