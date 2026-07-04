@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment / secrets — NEVER commit real keys
+.env
+.env.local
+.env.*.local
+server/.env
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+*.db-wal
+*.db-shm
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Antigravity brain / artifacts
+.gemini/
+
+# Logs
+*.log
+npm-debug.log*
