@@ -146,8 +146,6 @@ export function useAgentStream(): StreamState {
   return state;
 }
 
-// ─── Derived selectors ───────────────────────────────────────────────────────
-
 export interface CallView {
   started: AgentEventOf<"call.started"> | null;
   ended: AgentEventOf<"call.ended"> | null;
@@ -163,7 +161,6 @@ export function useDerived(state: StreamState, selectedCaseId: string | null) {
       (e) => !selectedCaseId || !e.caseId || e.caseId === selectedCaseId,
     );
 
-    // pending approval: last requested without a matching decision
     let pendingApproval: AgentEventOf<"approval.requested"> | null = null;
     const decided = new Set<string>();
     for (const e of caseEvents) {
@@ -180,7 +177,6 @@ export function useDerived(state: StreamState, selectedCaseId: string | null) {
       if (e && e.type === "approval.requested") break;
     }
 
-    // call view: most recent call
     let started: AgentEventOf<"call.started"> | null = null;
     for (let i = caseEvents.length - 1; i >= 0; i--) {
       const e = caseEvents[i];
@@ -200,7 +196,6 @@ export function useDerived(state: StreamState, selectedCaseId: string | null) {
       ) as AgentEventOf<"call.ended"> | undefined) ?? null;
     const call: CallView = { started, ended, transcripts, live: !!started && !ended };
 
-    // browser view
     let lastShot: AgentEventOf<"browser.screenshot"> | null = null;
     let lastAction: AgentEventOf<"browser.action"> | null = null;
     for (let i = caseEvents.length - 1; i >= 0; i--) {
@@ -209,24 +204,18 @@ export function useDerived(state: StreamState, selectedCaseId: string | null) {
       if (!lastAction && e?.type === "browser.action") lastAction = e;
       if (lastShot && lastAction) break;
     }
-    const recentActions = caseEvents
-      .filter((e): e is ReceivedEvent & { type: "browser.action" } => e.type === "browser.action")
-      .slice(-5);
 
-    // memory view
     const memoryOps = caseEvents.filter(
       (e): e is ReceivedEvent & { type: "memory.read" | "memory.write" } =>
         e.type === "memory.read" || e.type === "memory.write",
     );
-    const memoryReads = memoryOps.filter((e) => e.type === "memory.read").length;
-    const memoryWrites = memoryOps.filter((e) => e.type === "memory.write").length;
 
     return {
       caseEvents,
       pendingApproval,
       call,
-      browser: { lastShot, lastAction, recentActions },
-      memory: { ops: memoryOps, reads: memoryReads, writes: memoryWrites },
+      browser: { lastShot, lastAction },
+      memoryOps,
     };
   }, [state.events, selectedCaseId]);
 }

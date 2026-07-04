@@ -24,7 +24,9 @@ export function Typewriter({ text, active }: { text: string; active: boolean }) 
   return (
     <span>
       {text.slice(0, count)}
-      {!done ? <span className="ml-0.5 inline-block h-[1em] w-[7px] translate-y-[2px] bg-accent/80 animate-caret" /> : null}
+      {!done ? (
+        <span className="ml-0.5 inline-block h-[1em] w-[7px] translate-y-[2px] bg-accent/80 animate-caret" />
+      ) : null}
     </span>
   );
 }

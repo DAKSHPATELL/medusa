@@ -3,12 +3,9 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ExternalLink, Play, RotateCcw, SlidersHorizontal, X } from "lucide-react";
-import { agentPost } from "@/lib/dashboard/agent-api";
+import { agentPost } from "@/lib/demo/agent-api";
 
-/**
- * Hidden demo controls — toggle with "D" or the corner dot.
- * Jump between demo days and drive the scripted event replayer.
- */
+/** Hidden demo controls — toggle with "D" or the corner dot. */
 export function DevMenu({ currentDay, connected }: { currentDay: number; connected: boolean }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -16,7 +13,10 @@ export function DevMenu({ currentDay, connected }: { currentDay: number; connect
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
         return;
       }
       if (e.key.toLowerCase() === "d" && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -89,7 +89,11 @@ export function DevMenu({ currentDay, connected }: { currentDay: number; connect
                   }`}
                 >
                   <span className="block font-display text-[15px] font-bold leading-none">
-                    {busy === `day${day}` ? <Play size={13} className="mx-auto animate-pulse" /> : day}
+                    {busy === `day${day}` ? (
+                      <Play size={13} className="mx-auto animate-pulse" />
+                    ) : (
+                      day
+                    )}
                   </span>
                   <span className="mt-1 block text-[8.5px] uppercase tracking-wider opacity-70">
                     Jul {day + 1}

@@ -7,7 +7,7 @@
   --font-display: var(--font-space-grotesk), var(--font-geist-sans), sans-serif;
   --font-gov: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
 
-  /* ── Mission-control palette ────────────────────────────────── */
+  /* ── Demo palette ───────────────────────────────────────────── */
   --color-abyss: #05070c;
   --color-void: #0a0e16;
   --color-mist: #e9eff8;
@@ -80,10 +80,10 @@
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Mission control (dashboard) chrome
+   Live demo experience chrome
    ════════════════════════════════════════════════════════════════ */
 
-.mission-bg {
+.demo-bg {
   background:
     radial-gradient(1100px 560px at 72% -12%, rgba(62, 224, 255, 0.075), transparent 62%),
     radial-gradient(900px 520px at 4% 112%, rgba(129, 140, 248, 0.06), transparent 60%),
@@ -108,14 +108,14 @@
   border-radius: 12px;
 }
 
-.dash-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.dash-scroll::-webkit-scrollbar-track { background: transparent; }
-.dash-scroll::-webkit-scrollbar-thumb {
+.demo-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.demo-scroll::-webkit-scrollbar-track { background: transparent; }
+.demo-scroll::-webkit-scrollbar-thumb {
   background: rgba(151, 183, 224, 0.14);
   border-radius: 99px;
 }
-.dash-scroll::-webkit-scrollbar-thumb:hover { background: rgba(151, 183, 224, 0.28); }
-.dash-scroll { scrollbar-width: thin; scrollbar-color: rgba(151, 183, 224, 0.18) transparent; }
+.demo-scroll::-webkit-scrollbar-thumb:hover { background: rgba(151, 183, 224, 0.28); }
+.demo-scroll { scrollbar-width: thin; scrollbar-color: rgba(151, 183, 224, 0.18) transparent; }
 
 /* ════════════════════════════════════════════════════════════════
    TradeGate — official government design system

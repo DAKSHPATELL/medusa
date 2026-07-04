@@ -2,13 +2,13 @@
  * Visual verification for ClearBorder (dev tool, not part of the app).
  *
  * Prereq: `pnpm dev` running (web on :3000, agent on :8787).
- * Usage:  pnpm verify [portal|dashboard|all]
+ * Usage:  pnpm verify [portal|demo|all]
  *
  * - Screenshots the TradeGate portal (login → cases → detail → amend flow →
  *   correspondence/upload → cleared state) into verification/.
  * - Copies clean portal captures into apps/web/public/demo/ so the demo
  *   replayer's browser.screenshot events show real portal frames.
- * - Drives the dashboard through Day 1 (incl. clicking Approve), Day 2, Day 3
+ * - Drives the live demo through Day 1 (incl. clicking Approve), Day 2, Day 3
  *   and screenshots the key beats.
  * - Re-seeds at the end so the demo starts pristine.
  */
@@ -128,48 +128,42 @@ async function verifyPortal(): Promise<void> {
   await browser.close();
 }
 
-async function verifyDashboard(): Promise<void> {
-  console.log("\nDashboard:");
-  // Pristine state first
+async function verifyDemo(): Promise<void> {
+  console.log("\nDemo:");
   await agentPost("/api/demo/reset");
 
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1600, height: 950 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
 
   await page.goto(WEB);
   await page.waitForLoadState("networkidle");
-  await shot(page, "dashboard-idle");
+  await shot(page, "demo-idle");
 
-  // Day 1 at 3x speed; wait for the call, then the approval card
   await agentPost("/api/demo/replay", { day: 1, speed: 3 });
   await page.waitForSelector('[data-testid="call-transcript"]', { timeout: 60_000 });
   await page.waitForTimeout(3500);
-  await shot(page, "dashboard-day1-call");
+  await shot(page, "demo-day1-call");
 
   await page.waitForSelector('[data-testid="approval-card"]', { timeout: 90_000 });
   await page.waitForTimeout(700);
-  await shot(page, "dashboard-day1-approval");
+  await shot(page, "demo-day1-approval");
 
   await page.getByTestId("approval-approve").click();
-  await page.waitForTimeout(9000); // let the post-approval beats play out
-  await shot(page, "dashboard-day1-after-approval");
+  await page.waitForTimeout(9000);
+  await shot(page, "demo-day1-after-approval");
 
-  // Day 2
   await agentPost("/api/demo/replay", { day: 2, speed: 3 });
-  await page.waitForTimeout(11_000);
-  await page.getByTestId("panel-tab-memory").click();
-  await page.waitForTimeout(400);
-  await shot(page, "dashboard-day2-memory");
+  await page.waitForSelector('[data-testid="memory-beat"]', { timeout: 60_000 });
+  await page.waitForTimeout(4000);
+  await shot(page, "demo-day2-memory");
 
-  // Day 3, then the full three-day timeline
   await agentPost("/api/demo/replay", { day: 3, speed: 3 });
   await page.waitForTimeout(8000);
-  await shot(page, "dashboard-day3");
+  await shot(page, "demo-day3");
 
-  // Dev menu
   await page.keyboard.press("d");
   await page.waitForSelector('[data-testid="dev-menu"]');
-  await shot(page, "dashboard-dev-menu");
+  await shot(page, "demo-dev-menu");
 
   await browser.close();
 }
@@ -178,7 +172,7 @@ async function main(): Promise<void> {
   const mode = process.argv[2] ?? "all";
   try {
     if (mode === "portal" || mode === "all") await verifyPortal();
-    if (mode === "dashboard" || mode === "all") await verifyDashboard();
+    if (mode === "demo" || mode === "all") await verifyDemo();
   } finally {
     // Leave the world pristine for the next demo run.
     await agentPost("/api/demo/reset").catch(() => {});
