@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "test": "node --import tsx --test src/case-store/local.test.ts"
+    "test": "node --import tsx --test src/case-store/local.test.ts src/case-store/restart-test.ts"
   },
   "dependencies": {
     "@clearborder/core": "*",
