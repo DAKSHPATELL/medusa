@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# runtime data (SQLite database, uploads)
+data/
+
+# next.js
+.next/
+out/
+
+# build artifacts
+dist/
+*.tsbuildinfo
+
+# verification screenshots
+verification/
+
+# misc
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+.turbo/

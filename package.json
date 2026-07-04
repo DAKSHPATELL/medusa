@@ -1,0 +1,20 @@
+{
+  "name": "clearborder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ClearBorder — an AI agent that autonomously resolves packages stuck in customs.",
+  "scripts": {
+    "dev": "concurrently -n agent,web -c cyan,magenta --kill-others \"pnpm --filter @clearborder/agent dev\" \"pnpm --filter @clearborder/web dev\"",
+    "seed": "pnpm --filter @clearborder/agent seed",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "concurrently": "^10.0.3",
+    "playwright": "^1.61.1",
+    "tsx": "^4.23.0",
+    "typescript": "^5.9.3"
+  }
+}
