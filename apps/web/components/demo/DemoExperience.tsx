@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAgentStream, useDerived } from "@/lib/demo/useAgentStream";
 import { ApprovalModal } from "./ApprovalModal";
 import { DevMenu } from "./DevMenu";
+import { IntakeForm } from "./IntakeForm";
+import { IntroHero } from "./IntroHero";
 import { StoryFeed } from "./StoryFeed";
 import { StoryHeader } from "./StoryHeader";
 
@@ -26,13 +28,21 @@ export function DemoExperience() {
     [state.shippers, selectedCase],
   );
   const derived = useDerived(state, caseId);
+  const hasLiveEvents = derived.caseEvents.some((e) => e.receivedAt > 0);
 
   return (
     <div className="demo-bg flex min-h-screen flex-col font-sans text-mist">
       <StoryHeader selectedCase={selectedCase} shipper={shipper} connected={state.connected} />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-8">
-        <StoryFeed events={derived.caseEvents} call={derived.call} />
+        {!hasLiveEvents && derived.caseEvents.length === 0 ? (
+          <>
+            <IntroHero />
+            <IntakeForm onSubmitted={(id) => setCaseId(id)} />
+          </>
+        ) : (
+          <StoryFeed events={derived.caseEvents} call={derived.call} />
+        )}
       </main>
 
       <ApprovalModal approval={derived.pendingApproval} />

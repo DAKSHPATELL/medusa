@@ -5,7 +5,12 @@
   "description": "ClearBorder — an AI agent that autonomously resolves packages stuck in customs.",
   "scripts": {
     "dev": "concurrently -n agent,web -c cyan,magenta --kill-others \"pnpm --filter @clearborder/agent dev\" \"pnpm --filter @clearborder/web dev\"",
+    "dev:v2": "concurrently -n backend,frontend -c blue,green \"pnpm dev:v2:backend\" \"pnpm dev:v2:frontend\"",
+    "dev:v2:backend": "cd backend && python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:v2:frontend": "pnpm --filter @clearborder/v2-frontend dev",
     "seed": "pnpm --filter @clearborder/agent seed",
+    "seed:v2": "cd backend && python3 scripts/generate_mock_invoice.py",
+    "test:v2": "cd backend && python3 scripts/run_tests.py",
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
     "verify": "tsx scripts/verify.ts"

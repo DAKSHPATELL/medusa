@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mock Customs Portal — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #f1f5f9; color: #0f172a; margin: 0; }
+    header { background: #0f172a; color: white; padding: 1rem 1.5rem; }
+    main { max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    .search-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    input[data-testid='portal-search'] { flex: 1; padding: 0.65rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgb(0 0 0 / 0.08); }
+    th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; font-size: 0.75rem; text-transform: uppercase; color: #64748b; }
+    a { color: #2563eb; text-decoration: none; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Customs Broker Portal</strong> — Case search
+  </header>
+  <main>
+    <form class="search-row" action="/mock-customs/search" method="get">
+      <input data-testid="portal-search" name="q" type="search" placeholder="Search waybill ID…" value="{{ query or '' }}" />
+    </form>
+    <table>
+      <thead>
+        <tr><th>Waybill</th><th>Status</th><th>Declared</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for case in cases %}
+        <tr>
+          <td>{{ case.waybill_id }}</td>
+          <td>{{ case.status }}</td>
+          <td>{{ case.currency }} {{ '%.2f'|format(case.declared_value) }}</td>
+          <td><a href="/mock-customs/case/{{ case.waybill_id }}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </main>
+  <script>
+    document.querySelector("input[data-testid='portal-search']").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") e.target.form.submit();
+    });
+  </script>
+</body>
+</html>

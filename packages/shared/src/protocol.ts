@@ -59,4 +59,64 @@ export interface HealthResponse {
   uptimeSec: number;
   db: "connected" | "error";
   now: string;
+  /** Which automation modes are active (set at agent startup). */
+  modes?: {
+    computerUse: "gemini" | "scripted";
+    voice: "browser" | "twilio" | "mock";
+    geminiAvailable: boolean;
+  };
+}
+
+// ─── Case intake & orchestrator ──────────────────────────────────────────────
+
+export const ORCHESTRATOR_PHASES = [
+  "INTAKE",
+  "CALLING_SHIPPER",
+  "PORTAL_FILL",
+  "AWAITING_APPROVAL",
+  "SLEEPING",
+  "WAKE",
+  "RESOLVED",
+] as const;
+
+export type OrchestratorPhase = (typeof ORCHESTRATOR_PHASES)[number];
+
+export interface CaseIntakeRequest {
+  /** Importer passport / national ID number for customs filing. */
+  importerPassportId: string;
+  importerName: string;
+  importerVat?: string;
+  /** Shipment / tracking reference supplied by the client. */
+  shipmentReference: string;
+  declaredValue: number;
+  /** Commercial invoice total (source of truth). */
+  invoiceValue: number;
+  currency: string;
+  originCountry: string;
+  /** ISO 3166-1 alpha-2, e.g. "CN" */
+  originCountryCode: string;
+  shipperName: string;
+  shipperPhone: string;
+  shipperLanguageCode?: string;
+  exporterName?: string;
+  hsCode?: string;
+  invoiceNumber?: string;
+  trackingNumber?: string;
+  description?: string;
+  weightKg?: number;
+}
+
+export interface CaseIntakeResponse {
+  ok: boolean;
+  caseId: string;
+  reference: string;
+  declarationRef: string;
+  message: string;
+}
+
+export interface CaseStatusResponse {
+  case: import("./models").CaseRecord;
+  phase: OrchestratorPhase;
+  sleepUntil?: string | null;
+  pendingApprovalId?: string | null;
 }

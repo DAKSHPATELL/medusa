@@ -143,10 +143,33 @@ CREATE TABLE IF NOT EXISTS amendment_drafts (
   payload TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS orchestrator_pending (
+  case_id TEXT PRIMARY KEY REFERENCES cases(id),
+  approval_id TEXT NOT NULL,
+  resume_phase TEXT NOT NULL,
+  diff_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `;
 
 export function ensureSchema(db: Database.Database): void {
   db.exec(SCHEMA);
+  // Idempotent column migrations for orchestrator fields.
+  const cols = db.prepare("PRAGMA table_info(cases)").all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has("importer_passport_id")) {
+    db.exec("ALTER TABLE cases ADD COLUMN importer_passport_id TEXT");
+  }
+  if (!names.has("orchestrator_phase")) {
+    db.exec("ALTER TABLE cases ADD COLUMN orchestrator_phase TEXT DEFAULT 'INTAKE'");
+  }
+  if (!names.has("sleep_until")) {
+    db.exec("ALTER TABLE cases ADD COLUMN sleep_until TEXT");
+  }
+  if (!names.has("pending_approval_id")) {
+    db.exec("ALTER TABLE cases ADD COLUMN pending_approval_id TEXT");
+  }
 }
 
 // ─── Row mappers ─────────────────────────────────────────────────────────────
@@ -163,6 +186,10 @@ interface CaseRow {
   held_reason: string | null;
   consignee: string;
   shipment: string;
+  importer_passport_id?: string | null;
+  orchestrator_phase?: string | null;
+  sleep_until?: string | null;
+  pending_approval_id?: string | null;
 }
 
 export function caseFromRow(row: CaseRow): CaseRecord {
@@ -178,6 +205,9 @@ export function caseFromRow(row: CaseRow): CaseRecord {
     heldReason: row.held_reason ?? undefined,
     consignee: JSON.parse(row.consignee),
     shipment: JSON.parse(row.shipment),
+    importerPassportId: row.importer_passport_id ?? undefined,
+    orchestratorPhase: row.orchestrator_phase ?? undefined,
+    sleepUntil: row.sleep_until ?? undefined,
   };
 }
 
@@ -231,6 +261,27 @@ export function memoryFromRow(row: MemoryRow): MemoryRecord {
   };
 }
 
+export function getCase(db: Database.Database, id: string): CaseRecord | undefined {
+  const row = db.prepare("SELECT * FROM cases WHERE id = ? OR reference = ?").get(id, id) as
+    | CaseRow
+    | undefined;
+  return row ? caseFromRow(row) : undefined;
+}
+
+export function listMemoriesForCase(
+  db: Database.Database,
+  caseId: string,
+  shipperId?: string,
+): MemoryRecord[] {
+  const rows = db
+    .prepare(
+      `SELECT * FROM memories
+       WHERE case_id = ? OR shipper_id = ? OR (case_id IS NULL AND shipper_id IS NULL)
+       ORDER BY created_at DESC LIMIT 50`,
+    )
+    .all(caseId, shipperId ?? "") as MemoryRow[];
+  return rows.map(memoryFromRow);
+}
 export function listCases(db: Database.Database): CaseRecord[] {
   const rows = db
     .prepare("SELECT * FROM cases ORDER BY created_at DESC")

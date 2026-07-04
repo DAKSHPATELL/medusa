@@ -25,3 +25,9 @@ verification/
 npm-debug.log*
 pnpm-debug.log*
 .turbo/
+
+# Python (ClearBorder V2 backend)
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/

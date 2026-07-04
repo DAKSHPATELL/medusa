@@ -62,6 +62,12 @@ export interface CaseRecord {
   shipment: Shipment;
   /** Short explanation of the current hold, if any. */
   heldReason?: string;
+  /** Importer passport / ID for customs filing (intake cases). */
+  importerPassportId?: string;
+  /** Orchestrator state machine phase. */
+  orchestratorPhase?: string;
+  /** When the agent plans to wake (ISO), if sleeping. */
+  sleepUntil?: string | null;
 }
 
 // ─── Shipper ─────────────────────────────────────────────────────────────────

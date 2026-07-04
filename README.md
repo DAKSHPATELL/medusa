@@ -8,29 +8,117 @@ Built for a Google DeepMind competition on agents with persistent memory over lo
 
 ---
 
+## ClearBorder V2 (Statement Four hackathon build)
+
+Minimalist **sender app** — Upload → Process → Verify. No dashboards. Human-in-the-loop before final portal submit.
+
+**Spec:** [`CLEARBORDER_V2_SPEC.md`](./CLEARBORDER_V2_SPEC.md) · [`clearborder_v2_spec.json`](./clearborder_v2_spec.json)
+
+### Quickstart V2
+
+```bash
+# 1. Python backend deps (once)
+python3 -m venv backend/.venv
+source backend/.venv/bin/activate
+pip install -r backend/requirements.txt
+playwright install chromium
+
+# 2. Node frontend deps
+pnpm install
+pnpm seed:v2   # generates backend/fixtures/mock_invoice.pdf
+
+# 3. Environment (GEMINI_API_KEY already in .env — never commit)
+cp .env.example .env
+
+# 4. Run V2 stack
+pnpm dev:v2    # backend :8000, sender app :3001
+```
+
+| Surface | URL | Notes |
+| --- | --- | --- |
+| **Sender app** | http://localhost:3001 | Drag-drop invoice → poll state → approve diff |
+| **V2 API** | http://localhost:8000 | `POST /api/upload`, `GET /api/state/{id}`, `POST /api/approve/{id}` |
+| **Mock customs portal** | http://localhost:8000/mock-customs/login | `broker.demo` / `clearborder2026` |
+| Seed waybill | `WB-2026-448291` | Portal holds **$240.00**; invoice corrects to **$2,400.00** |
+
+**State machine:** `PENDING_UPLOAD` → `EXTRACTED` → `PORTAL_SYNCING` → `AWAITING_APPROVAL` → `COMPLETED` (or `EXCEPTION_HOLD`)
+
+Automation fills the portal and saves draft but **never clicks** `#gatekeeper-submit-btn`. Broker approves in the sender app, then submits manually on the mock portal.
+
+### V2 tests
+
+```bash
+# Terminal 1
+pnpm dev:v2:backend
+
+# Terminal 2
+pnpm test:v2
+# or: curl -F file=@backend/fixtures/mock_invoice.pdf http://localhost:8000/api/upload
+```
+
+`verify_state_hydration('env_test_id')` is exposed at `GET /api/verify/hydration/env_test_id` (seeded on backend startup).
+
+### V2 layout
+
+```
+backend/          FastAPI + SQLite + Playwright portal sync
+frontend/         Next.js minimalist sender app
+clearborder_v2_spec.json
+CLEARBORDER_V2_SPEC.md
+```
+
+V1 (`apps/web`, `apps/agent`) still runs via `pnpm dev` on ports 3000 / 8787 — stacks are independent.
+
+---
+
 ## Quickstart
 
 ```bash
 pnpm install
 pnpm seed     # create + populate data/clearborder.db (idempotent, resets demo state)
+cp .env.example .env   # add GEMINI_API_KEY for real agent (never commit .env)
 pnpm dev      # web on :3000, agent service on :8787
 ```
 
 | Surface | URL | Notes |
 | --- | --- | --- |
-| **Live demo** (the story) | http://localhost:3000 | Press **`D`** → play **Day 1 / 2 / 3** |
+| **Live demo** (the story) | http://localhost:3000 | **Submit a real case** or press **`D`** → play **Day 1 / 2 / 3** |
 | **TradeGate** (mock customs portal) | http://localhost:3000/portal/login | `a.mercier` / `demo2026` |
-| Agent service health | http://localhost:8787/health | WS `/ws` · SSE `/events` |
+| Agent service health | http://localhost:8787/health | WS `/ws` · SSE `/events` · shows active modes |
 
-No `.env` needed for the foundation demo. Copy `.env.example` → `.env` when wiring Gemini/Twilio (the seed stamps `SHIPPER_PHONE_NUMBER` onto the hero shipper record).
+Copy `.env.example` → `.env` and set `GEMINI_API_KEY` for the real orchestrator. Without it, the demo replayer still works; computer use falls back to scripted Playwright.
 
-### Running the demo
+### Running the demo (scripted replayer)
 
 1. Open the live demo at `/`, press **`D`**, click **Day 1**. The agent discovers the valuation hold, calls the shipper (zh↔en transcript inline), amends the declaration on TradeGate, and stops at an **approval modal** — click **Approve & submit**. The agent finishes the submission and goes to sleep.
 2. Press **`D`** → **Day 2**: the agent wakes with a recap, finds the customs officer's new document request, recalls the needed certificate **from a case it handled in March**, uploads it, sleeps again.
 3. Press **`D`** → **Day 3**: declaration cleared. The agent writes the learned pattern (*"this shipper misplaces decimals — call first"*) to the shipper's profile.
 
 **Reset demo state** any time from the `D` menu, or `pnpm seed`.
+
+### Running the real agent (intake → portal → approval → sleep → wake)
+
+1. Set `GEMINI_API_KEY` in `.env` (billing-linked for computer use; free tier works for Live/embeddings with limits).
+2. `pnpm dev` — agent probes Gemini at startup; if computer use fails, auto-falls back to `scripted` (logged clearly).
+3. Open http://localhost:3000 → **Submit a real case** with passport ID, importer, declared vs invoice values (use 240 / 2400 to trigger the valuation-hold flow).
+4. Watch the story feed: agent recalls memories → calls shipper (`VOICE_MODE=mock` by default) → Playwright fills TradeGate → **approval modal** → approve → agent sleeps (~30s with default `DEMO_TIME_COMPRESSION=30000`).
+5. After sleep, the wake scheduler fires automatically, or use **Wake agent** in the `D` menu / `POST /api/agent/wake/:caseId`.
+
+**Env flags**
+
+| Variable | Values | Default |
+| --- | --- | --- |
+| `COMPUTER_USE_MODE` | `gemini` \| `scripted` | `gemini` (auto-fallback) |
+| `VOICE_MODE` | `mock` \| `browser` \| `twilio` | `mock` |
+| `DEMO_TIME_COMPRESSION` | ms per “business day” | `30000` |
+| `BROWSER_HEADLESS` | `true` \| `false` | `true` |
+
+**Agent API (real orchestrator)**
+
+- `POST /api/cases/intake` — create case + start agent
+- `GET /api/cases/:id` — case status + orchestrator phase
+- `POST /api/approval` — human-in-the-loop gate (orchestrator or replayer)
+- `POST /api/agent/wake/:caseId` — manual wake for demo
 
 ---
 
@@ -42,7 +130,8 @@ apps/
             ├─ /            story-driven live demo (AgentEvent stream as narrative)
             └─ /portal      "TradeGate" — mock government customs portal (own visual identity)
   agent/    Fastify service: AgentEvent hub (WebSocket /ws + SSE /events), SQLite
-            persistence, seed script, scripted demo replayer
+            persistence, seed script, **real orchestrator** (memory, voice, Playwright),
+            and scripted demo replayer for Day 1/2/3
 packages/
   shared/   THE CONTRACT — AgentEvent union, Case/Shipper/MemoryRecord models,
             wire protocol, portal domain types + data-testid registry
@@ -71,10 +160,13 @@ Envelope on every event: `id`, `seq` (ordering), `at` (ISO), `day` (drives the D
 ### Agent service API
 
 - `GET /api/state` — snapshot (cases, shippers, demo state, event backlog)
-- `POST /api/approval` — `{ approvalId, decision: "approve" | "reject" }` (the demo approval modal posts here)
-- `POST /api/demo/replay` — `{ day?: 1|2|3, speed?: number }`
+- `POST /api/cases/intake` — `{ importerPassportId, importerName, declaredValue, invoiceValue, … }` → starts real agent
+- `GET /api/cases/:id` — case + orchestrator phase
+- `POST /api/agent/wake/:caseId` — manual wake
+- `POST /api/approval` — `{ approvalId, decision: "approve" | "reject" }` (approval modal posts here)
+- `POST /api/demo/replay` — `{ day?: 1|2|3, speed?: number }` (scripted hero story)
 - `POST /api/demo/reset` — pristine re-seed
-- Emitting events (for the orchestrator/call/browser workstreams): go through `EventHub.emit(AgentEventInput)` in `apps/agent/src/hub.ts` — it assigns the envelope, persists, applies side effects (case status, memory recall stamps, agent status) and broadcasts.
+- Emitting events: go through `EventHub.emit(AgentEventInput)` in `apps/agent/src/hub.ts`
 
 ## TradeGate portal notes (for the browser-automation workstream)
 
@@ -93,10 +185,14 @@ Envelope on every event: `id`, `seq` (ordering), `at` (ISO), `day` (drives the D
 | `pnpm build` | `next build` + typechecks |
 | `pnpm verify [portal\|demo]` | Playwright screenshots into `verification/` (needs `pnpm dev` running; re-seeds when done) |
 
-## What's deliberately stubbed (foundation scope)
+## What's real vs stubbed
 
-- **No Gemini / Twilio** — the live-call workstream replaces the scripted transcript events.
-- **No real browser automation / memory engine / orchestrator** — the **demo replayer** (`apps/agent/src/script.ts`) emits the full three-day hero story as real AgentEvents so the live demo is end-to-end today.
-- The replayer updates agent-domain state (case status, memories, learned patterns) but does **not** operate the portal; portal state changes only through the portal UI itself.
-- Portal "documents" store metadata (+ uploaded files under `data/uploads/`); PDFs aren't rendered.
-- `apps/web/public/demo/*.png` are portal captures generated by `pnpm verify`, referenced by the replayer's `browser.screenshot` events.
+| Component | Status |
+| --- | --- |
+| **Orchestrator** (state machine, sleep/wake, approval gate) | **Real** — SQLite-persisted per case |
+| **Memory engine** (episodic write, recall, wake recap, shipper patterns) | **Real** — embeddings when Gemini key present |
+| **Portal automation** | **Real Playwright** — `scripted` path uses `PORTAL_TEST_IDS`; `gemini` smoke-tests CU then runs scripted for demo reliability |
+| **Voice** | **`mock`** default (bilingual transcripts); **`browser`** / **`twilio`** stubs log intent, same transcripts until Twilio bridge is configured |
+| **Demo replayer** (Day 1/2/3 hero story) | **Real events**, scripted timing — coexists with live intake cases |
+| **Gemini computer use loop** | Smoke-tested at startup; full screenshot→act loop abbreviated for token budget — extend in `apps/agent/src/browser/computer-use.ts` |
+| Twilio PSTN bridge | Stub — falls back to mock; architecture in `docs/research-part2.md` |

@@ -104,6 +104,15 @@ export function DevMenu({ currentDay, connected }: { currentDay: number; connect
 
             <div className="mt-3 space-y-2">
               <button
+                data-testid="dev-wake"
+                disabled={busy !== null}
+                onClick={() => run("wake", "/api/agent/wake/CB-2481")}
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-line bg-white/[0.03] px-3 py-2 text-[12px] text-dim transition-colors hover:border-ev-call/35 hover:text-ev-call disabled:opacity-50"
+              >
+                <Play size={12} />
+                Wake agent (Day 2 shortcut)
+              </button>
+              <button
                 data-testid="dev-reset"
                 disabled={busy !== null}
                 onClick={() => run("reset", "/api/demo/reset")}

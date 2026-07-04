@@ -1,0 +1,106 @@
+{
+  "name": "ClearBorder V2",
+  "version": "2.0.0",
+  "hackathon": "Google DeepMind Statement Four — Persistent Multi-Primitive Agents",
+  "build_window": "24h",
+  "date": "2026-07-05",
+  "stack": {
+    "frontend": "Next.js (minimalist sender app, port 3001)",
+    "backend": "FastAPI Python (port 8000)",
+    "database": "SQLite + SQLAlchemy",
+    "ai": {
+      "extract": "Gemini 2.5 Flash (multimodal invoice parse)",
+      "execute": "Gemini 3.5 Flash computer use + Playwright",
+      "fallback": "Gemini Live Translate stub for EXCEPTION_HOLD"
+    }
+  },
+  "constraints": {
+    "no_dashboards": true,
+    "ui_flow": ["Upload", "Process", "Verify"],
+    "human_in_the_loop": {
+      "agent_may_fill_portal": true,
+      "agent_may_not_click": "#gatekeeper-submit-btn",
+      "broker_must_approve": true
+    },
+    "persistent_state": {
+      "backbone": "environment_id",
+      "store": "SQLite",
+      "rehydrate_on_restart": true
+    },
+    "env": {
+      "GEMINI_API_KEY": "required for real extraction/computer use; never commit .env"
+    }
+  },
+  "state_machine": {
+    "states": [
+      "PENDING_UPLOAD",
+      "EXTRACTED",
+      "PORTAL_SYNCING",
+      "AWAITING_APPROVAL",
+      "COMPLETED",
+      "EXCEPTION_HOLD"
+    ],
+    "transitions": [
+      { "from": "PENDING_UPLOAD", "event": "upload_received", "to": "EXTRACTED" },
+      { "from": "EXTRACTED", "event": "portal_sync_started", "to": "PORTAL_SYNCING" },
+      { "from": "PORTAL_SYNCING", "event": "draft_saved", "to": "AWAITING_APPROVAL" },
+      { "from": "PORTAL_SYNCING", "event": "sync_failed", "to": "EXCEPTION_HOLD" },
+      { "from": "AWAITING_APPROVAL", "event": "broker_approved", "to": "COMPLETED" },
+      { "from": "AWAITING_APPROVAL", "event": "broker_rejected", "to": "EXCEPTION_HOLD" }
+    ]
+  },
+  "flow": [
+    "Sender uploads Commercial Invoice PDF/image via drag-drop",
+    "POST /api/upload → Gemini extracts JSON: waybill_id, declared_value, currency, hs_codes, shipper_country, preferred_language",
+    "Hydrate environment_id in SQLite state store",
+    "Background: Gemini Computer Use + Playwright → mock portal at http://localhost:8000/mock-customs/login",
+    "Fill fields, save draft, halt at AWAITING_APPROVAL",
+    "Frontend shows diff + Approve Document Modification — human approves, then broker can submit on portal"
+  ],
+  "api": {
+    "POST /api/upload": "multipart file upload → { environment_id, extracted }",
+    "GET /api/state/{environment_id}": "full EnvironmentState snapshot",
+    "POST /api/approve/{environment_id}": "broker approval → COMPLETED"
+  },
+  "mock_portal": {
+    "base_url": "http://localhost:8000/mock-customs",
+    "login_url": "http://localhost:8000/mock-customs/login",
+    "credentials": { "username": "broker.demo", "password": "clearborder2026" },
+    "selectors": {
+      "login_user": "#customs-user",
+      "login_pass": "#customs-pass",
+      "login_submit": "#login-submit",
+      "portal_search": "input[data-testid='portal-search']",
+      "declared_value": "input[name='declared_value_field']",
+      "freight_checkbox": "input#freight-inclusive-checkbox",
+      "save_draft": "button.save-draft-action",
+      "blocked_submit": "#gatekeeper-submit-btn"
+    },
+    "seed_waybill": "WB-2026-448291"
+  },
+  "extracted_fields": [
+    "waybill_id",
+    "declared_value",
+    "currency",
+    "hs_codes",
+    "shipper_country",
+    "preferred_language"
+  ],
+  "tests": [
+    {
+      "name": "upload_and_extract",
+      "command": "curl -F file=@backend/fixtures/mock_invoice.pdf http://localhost:8000/api/upload"
+    },
+    {
+      "name": "verify_state_hydration",
+      "function": "verify_state_hydration('env_test_id')"
+    }
+  ],
+  "repo_structure": {
+    "backend": "FastAPI, port 8000",
+    "frontend": "Next.js sender app, port 3001",
+    "clearborder_v2_spec.json": "machine-readable spec",
+    "CLEARBORDER_V2_SPEC.md": "human-readable spec",
+    "README.md": "run instructions for V1 and V2"
+  }
+}
