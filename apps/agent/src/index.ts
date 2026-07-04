@@ -11,11 +11,12 @@ import type {
 } from "@clearborder/shared";
 import { ensureSchema, getCase, kvSet, openDb } from "./db";
 import { loadRootEnv } from "./env";
-import { probeComputerUse, getGemini } from "./gemini/client";
+import { probeComputerUse, getGemini, createLiveEphemeralToken, geminiModels } from "./gemini/client";
 import { EventHub } from "./hub";
 import { Orchestrator } from "./orchestrator/index";
 import { Replayer } from "./replayer";
 import { seedAll } from "./seed";
+import { voiceSessions } from "./voice/index";
 
 loadRootEnv();
 
@@ -198,6 +199,99 @@ app.post<{ Body: { ref: string; status: string } }>(
     return { ok: info.changes > 0 };
   },
 );
+
+// ── Browser Gemini Live voice bridge ─────────────────────────────────────────
+
+app.post<{ Body: { callId: string } }>("/api/voice/live-token", async (request, reply) => {
+  const { callId } = request.body ?? {};
+  if (!callId) return reply.status(400).send({ error: "callId required" });
+  const ctx = voiceSessions.getContext(callId);
+  if (!ctx) return reply.status(404).send({ error: "No active voice session for this callId" });
+
+  const systemInstruction = [
+    "You are simulating a bilingual customs clearance phone call for a demo.",
+    `ClearBorder agent (English) calls ${ctx.shipperName} (${ctx.shipperLang}) about shipment ${ctx.trackingNumber}.`,
+    `Declared value: ${ctx.currency} ${ctx.declaredValue.toFixed(2)}. Invoice ${ctx.invoiceNumber}: ${ctx.currency} ${ctx.invoiceValue.toFixed(2)}.`,
+    "First speak as the English-speaking customs agent asking the shipper to confirm the correct invoice total.",
+    "Then respond as the Mandarin-speaking shipper admitting the decimal-point error and confirming the invoice total.",
+    "Keep responses concise. Speak naturally for voice output.",
+  ].join(" ");
+
+  const token = await createLiveEphemeralToken(systemInstruction);
+  if (!token) {
+    return reply.status(503).send({ error: "Gemini Live token unavailable — check GEMINI_API_KEY and billing" });
+  }
+
+  const { LIVE_MODEL } = geminiModels();
+  return {
+    token,
+    model: LIVE_MODEL,
+    callId,
+    context: ctx,
+  };
+});
+
+app.post<{
+  Body: {
+    speaker: "agent" | "shipper";
+    sourceLang: string;
+    targetLang: string;
+    sourceText: string;
+    translatedText: string;
+    partial?: boolean;
+  };
+  Params: { callId: string };
+}>("/api/voice/:callId/transcript", async (request, reply) => {
+  const ctx = voiceSessions.getContext(request.params.callId);
+  if (!ctx) return reply.status(404).send({ error: "Voice session not found" });
+
+  const body = request.body;
+  if (!body?.sourceText) return reply.status(400).send({ error: "sourceText required" });
+
+  hub.emit(
+    {
+      type: body.partial ? "call.transcript_partial" : "call.transcript_final",
+      caseId: ctx.caseId,
+      callId: request.params.callId,
+      speaker: body.speaker ?? "agent",
+      sourceLang: body.sourceLang,
+      targetLang: body.targetLang,
+      sourceText: body.sourceText,
+      translatedText: body.translatedText ?? body.sourceText,
+    },
+    { day: ctx.day },
+  );
+  return { ok: true };
+});
+
+app.post<{
+  Body: {
+    summary: string;
+    confirmedValue: number;
+    transcripts: Array<{
+      speaker: "agent" | "shipper";
+      sourceLang: string;
+      targetLang: string;
+      sourceText: string;
+      translatedText: string;
+    }>;
+  };
+  Params: { callId: string };
+}>("/api/voice/:callId/complete", async (request, reply) => {
+  const { callId } = request.params;
+  const body = request.body;
+  if (!body?.summary || body.confirmedValue === undefined) {
+    return reply.status(400).send({ error: "summary and confirmedValue required" });
+  }
+  const ok = voiceSessions.complete(callId, {
+    summary: body.summary,
+    confirmedValue: body.confirmedValue,
+    transcripts: body.transcripts ?? [],
+  });
+  if (!ok) return reply.status(404).send({ error: "Voice session not found or already completed" });
+  console.log(`[voice] browser Live complete: ${callId}`);
+  return { ok: true };
+});
 
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });

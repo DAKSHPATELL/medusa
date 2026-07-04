@@ -109,7 +109,7 @@ Copy `.env.example` → `.env` and set `GEMINI_API_KEY` for the real orchestrato
 | Variable | Values | Default |
 | --- | --- | --- |
 | `COMPUTER_USE_MODE` | `gemini` \| `scripted` | `gemini` (auto-fallback) |
-| `VOICE_MODE` | `mock` \| `browser` \| `twilio` | `mock` |
+| `VOICE_MODE` | `mock` \| `browser` \| `twilio` | `browser` (Gemini Live in-browser; mock fallback on timeout) |
 | `DEMO_TIME_COMPRESSION` | ms per “business day” | `30000` |
 | `BROWSER_HEADLESS` | `true` \| `false` | `true` |
 

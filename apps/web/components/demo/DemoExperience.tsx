@@ -2,16 +2,26 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAgentStream, useDerived } from "@/lib/demo/useAgentStream";
+import { agentHttpBase } from "@/lib/demo/agent-api";
 import { ApprovalModal } from "./ApprovalModal";
 import { DevMenu } from "./DevMenu";
 import { IntakeForm } from "./IntakeForm";
 import { IntroHero } from "./IntroHero";
+import { LiveVoiceBridge } from "./LiveVoiceBridge";
 import { StoryFeed } from "./StoryFeed";
 import { StoryHeader } from "./StoryHeader";
 
 export function DemoExperience() {
   const state = useAgentStream();
   const [caseId, setCaseId] = useState<string | null>(null);
+  const [voiceMode, setVoiceMode] = useState<"browser" | "twilio" | "mock" | null>(null);
+
+  useEffect(() => {
+    fetch(`${agentHttpBase()}/health`)
+      .then((r) => r.json())
+      .then((h) => setVoiceMode(h?.modes?.voice ?? "mock"))
+      .catch(() => setVoiceMode("mock"));
+  }, []);
 
   useEffect(() => {
     if (!caseId && state.demo?.activeCaseId) {
@@ -46,6 +56,8 @@ export function DemoExperience() {
       </main>
 
       <ApprovalModal approval={derived.pendingApproval} />
+
+      <LiveVoiceBridge call={derived.call} voiceMode={voiceMode} />
 
       {!state.connected && state.everConnected ? (
         <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center">

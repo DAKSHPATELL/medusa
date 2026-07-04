@@ -1,4 +1,4 @@
-import { Environment, GoogleGenAI } from "@google/genai";
+import { Environment, GoogleGenAI, Modality } from "@google/genai";
 
 const COMPUTER_USE_MODEL =
   process.env.GEMINI_COMPUTER_USE_MODEL ?? "gemini-3-flash-preview";
@@ -86,6 +86,35 @@ export async function summarize(text: string, prompt: string): Promise<string | 
     });
     return res.text?.trim() ?? null;
   } catch {
+    return null;
+  }
+}
+
+/** Short-lived token for browser Gemini Live sessions (never expose the main API key). */
+export async function createLiveEphemeralToken(systemInstruction: string): Promise<string | null> {
+  const ai = getGemini();
+  if (!ai) return null;
+  try {
+    const expireTime = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const token = await ai.authTokens.create({
+      config: {
+        uses: 1,
+        expireTime,
+        liveConnectConstraints: {
+          model: LIVE_MODEL,
+          config: {
+            responseModalities: [Modality.AUDIO],
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
+            systemInstruction,
+          },
+        },
+      },
+    });
+    return token.name ?? null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[gemini] live ephemeral token failed: ${msg.slice(0, 160)}`);
     return null;
   }
 }

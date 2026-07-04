@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@clearborder/shared": "workspace:*",
+    "@google/genai": "^1.52.0",
     "better-sqlite3": "^12.11.1",
     "lucide-react": "^1.23.0",
     "motion": "^12.42.2",

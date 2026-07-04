@@ -2,12 +2,18 @@ import { randomUUID } from "node:crypto";
 import type { CaseRecord, Shipper } from "@clearborder/shared";
 import type { EventHub } from "../hub";
 import type { MemoryEngine } from "../orchestrator/memory";
+import { voiceSessions, type VoiceSessionContext } from "./session";
 
 export interface VoiceCallParams {
   caseId: string;
   case: CaseRecord;
   shipper: Shipper;
   day?: number;
+}
+
+interface MockVoiceOpts {
+  callId?: string;
+  skipStarted?: boolean;
 }
 
 /**
@@ -17,25 +23,28 @@ export async function runMockVoiceCall(
   hub: EventHub,
   memory: MemoryEngine,
   params: VoiceCallParams,
+  opts: MockVoiceOpts = {},
 ): Promise<{ callId: string; confirmedValue: number }> {
   const { caseId, case: rec, shipper, day } = params;
-  const callId = randomUUID();
+  const callId = opts.callId ?? randomUUID();
   const invoiceValue = rec.shipment.invoiceValue;
   const declared = rec.shipment.declaredValue;
 
-  hub.emit(
-    {
-      type: "call.started",
-      caseId,
-      callId,
-      phone: shipper.phone,
-      shipperName: shipper.name,
-      direction: "outbound",
-      sourceLang: shipper.languageCode,
-      targetLang: "en",
-    },
-    { day },
-  );
+  if (!opts.skipStarted) {
+    hub.emit(
+      {
+        type: "call.started",
+        caseId,
+        callId,
+        phone: shipper.phone,
+        shipperName: shipper.name,
+        direction: "outbound",
+        sourceLang: shipper.languageCode,
+        targetLang: "en",
+      },
+      { day },
+    );
+  }
 
   await delay(800);
   hub.emit(
@@ -77,7 +86,7 @@ export async function runMockVoiceCall(
       sourceLang: shipper.languageCode,
       targetLang: "en",
       sourceText: `是的，发票总额是 ${invoiceValue.toFixed(2)} 美元。申报时小数点位置输错了，非常抱歉。`,
-      translatedText: `Yes, the invoice total is USD ${invoiceValue.toFixed(2)}.00. We entered the decimal point incorrectly — our mistake.`,
+      translatedText: `Yes, the invoice total is USD ${invoiceValue.toFixed(2)}. We entered the decimal point incorrectly — our mistake.`,
     },
     { day },
   );
@@ -107,18 +116,123 @@ export async function runMockVoiceCall(
   return { callId, confirmedValue: invoiceValue };
 }
 
-/** Browser voice path — same mock transcripts; Live API runs client-side when configured. */
+function buildSessionContext(params: VoiceCallParams, callId: string): VoiceSessionContext {
+  const { caseId, case: rec, shipper, day } = params;
+  return {
+    caseId,
+    callId,
+    shipperName: shipper.name,
+    shipperLang: shipper.language,
+    shipperLanguageCode: shipper.languageCode,
+    phone: shipper.phone,
+    trackingNumber: rec.shipment.trackingNumber,
+    declaredValue: rec.shipment.declaredValue,
+    invoiceValue: rec.shipment.invoiceValue,
+    invoiceNumber: rec.shipment.invoiceNumber,
+    currency: rec.shipment.currency,
+    day,
+  };
+}
+
+function emitBrowserTranscripts(
+  hub: EventHub,
+  memory: MemoryEngine,
+  ctx: VoiceSessionContext,
+  shipperId: string,
+  lines: Array<{
+    speaker: "agent" | "shipper";
+    sourceLang: string;
+    targetLang: string;
+    sourceText: string;
+    translatedText: string;
+  }>,
+  summary: string,
+  confirmedValue: number,
+): void {
+  const { caseId, callId, day } = ctx;
+  for (const line of lines) {
+    hub.emit(
+      {
+        type: "call.transcript_final",
+        caseId,
+        callId,
+        speaker: line.speaker,
+        sourceLang: line.sourceLang,
+        targetLang: line.targetLang,
+        sourceText: line.sourceText,
+        translatedText: line.translatedText,
+      },
+      { day },
+    );
+  }
+
+  memory.write(
+    {
+      type: "episodic",
+      caseId,
+      shipperId,
+      content: `${ctx.shipperName} confirmed invoice ${ctx.invoiceNumber} total = ${ctx.currency} ${confirmedValue.toFixed(2)} via Gemini Live browser call; declared ${ctx.declaredValue.toFixed(2)} was a decimal-entry error.`,
+      source: "Gemini Live call (browser)",
+    },
+    { caseId, day },
+  );
+
+  hub.emit(
+    {
+      type: "call.ended",
+      caseId,
+      callId,
+      durationSec: Math.max(30, lines.length * 20),
+      summary,
+    },
+    { day },
+  );
+}
+
+/** Browser Live voice — waits for client Gemini Live session, falls back to mock on timeout. */
 export async function runBrowserVoiceCall(
   hub: EventHub,
   memory: MemoryEngine,
   params: VoiceCallParams,
 ): Promise<{ callId: string; confirmedValue: number }> {
+  const { caseId, case: rec, shipper, day } = params;
+  const callId = randomUUID();
+  const ctx = buildSessionContext(params, callId);
+
+  hub.emit(
+    {
+      type: "call.started",
+      caseId,
+      callId,
+      phone: shipper.phone,
+      shipperName: shipper.name,
+      direction: "outbound",
+      sourceLang: shipper.languageCode,
+      targetLang: "en",
+    },
+    { day },
+  );
+
   hub.emit({
     type: "agent.thought",
-    caseId: params.caseId,
-    text: "Browser voice mode — Live API session can run in a separate tab; using server-side transcript simulation for reliability.",
+    caseId,
+    text: "Gemini Live browser session — allow microphone when prompted. Real-time translation active.",
   });
-  return runMockVoiceCall(hub, memory, params);
+
+  const waitMs = Number(process.env.VOICE_BROWSER_TIMEOUT_MS ?? 120_000);
+  const sessionPromise = voiceSessions.register(ctx, waitMs);
+
+  try {
+    const result = await sessionPromise;
+    emitBrowserTranscripts(hub, memory, ctx, shipper.id, result.transcripts, result.summary, result.confirmedValue);
+    return { callId, confirmedValue: result.confirmedValue };
+  } catch (err) {
+    console.warn(
+      `[voice] browser Live unavailable (${err instanceof Error ? err.message : String(err)}) — mock fallback`,
+    );
+    voiceSessions.cancel(callId);
+    return runMockVoiceCall(hub, memory, params, { callId, skipStarted: true });
+  }
 }
 
 /** Twilio path stub — real bridge when TWILIO_* env vars are set. */
@@ -139,10 +253,11 @@ export async function runTwilioVoiceCall(
     caseId: params.caseId,
     text: `Placing outbound call to ${params.shipper.phone} via Twilio Media Streams → Gemini Live.`,
   });
-  // Full Twilio bridge is production scope; mock transcripts for demo reliability.
   return runMockVoiceCall(hub, memory, params);
 }
 
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
+
+export { voiceSessions };
