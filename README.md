@@ -82,8 +82,8 @@ All secrets stay in `server/.env` — never shipped to client apps.
 | **1** | Live Translate → CaseFile | ✅ Complete |
 | **2** | Persistent CaseFile, cold-restart resume | ✅ Complete |
 | **3** | Computer Use + human confirm gate | ✅ Complete |
-| **4** | Pixel-agents office visualization | 🔨 Groundwork done |
-| **5** | End-to-end golden path + pitch | ⬜ Pending |
+| **4** | Pixel-agents office visualization | ✅ Complete |
+| **5** | End-to-end golden path + pitch | ✅ Complete |
 
 ---
 
