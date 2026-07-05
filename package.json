@@ -10,6 +10,7 @@
     "dev:office": "pnpm --filter @clearborder/office dev",
     "dev:console": "pnpm --filter @clearborder/console dev",
     "dev:admin": "pnpm --filter @clearborder/admin dev",
+    "demo:live": "concurrently -n server,portal,office -c cyan,yellow,magenta --kill-others \"DEMO_MODE=false COMPUTER_USE_MODE=live pnpm --filter @clearborder/server dev\" \"pnpm --filter @clearborder/portal dev\" \"pnpm --filter @clearborder/office dev\"",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm --filter @clearborder/server test"

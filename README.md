@@ -100,6 +100,25 @@ Then open:
   live screenshots into the office. It is **physically gated**: the loop refuses to click Submit; only a
   human `POST /confirm` submits.
 
+### Run the live demo (real Gemini Computer Use)
+
+```bash
+# 1. one-time: install the browser the agent drives
+npx playwright install chromium
+
+# 2. put a real key in .env
+echo "GEMINI_API_KEY=sk-...your-key..." >> .env
+
+# 3. start the live stack (server in live mode + portal + office)
+pnpm demo:live
+```
+
+Then open **http://localhost:5175** and press **Space** to walk through the story. At Scene 4 the
+Portal agent launches a real headless Chromium, logs into the EU portal at :5174, corrects the value,
+and **streams its live screen into the office** — and stops at the approval gate. Click **Approve** to
+let it submit. If the key or model is unavailable, it falls back to the scripted path automatically, so
+the demo never hard-fails. (Models are Gemini previews — re-verify `CU_MODEL` in `.env` before a run.)
+
 ### Live Product Mode (persistence, made visible)
 
 Beyond the pitch demo, the server runs a **memory-session worker**: it resumes each registered case on
