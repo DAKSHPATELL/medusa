@@ -158,6 +158,14 @@ export default function App() {
   const [isCorrecing, setIsCorrecing] = useState(false);
   const [sessionClosed, setSessionClosed] = useState(false);
   const [savedEnvironmentId, setSavedEnvironmentId] = useState<string | null>(null);
+  // Live view of the agent's browser (Computer Use) — frames + action feed.
+  const [agentView, setAgentView] = useState<{
+    active: boolean;
+    frame: string | null; // data URL of the agent's live browser screenshot
+    url: string;
+    steps: string[];
+    done: boolean;
+  }>({ active: false, frame: null, url: "", steps: [], done: false });
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -208,15 +216,21 @@ export default function App() {
             case "correction_submitted":
               showToast("success", `Correction submitted: ${msg.data.correction.field}`);
               setConfirmCard(null);
+              setAgentView((v) => ({ ...v, done: true, steps: [...v.steps.slice(-7), "✓ Submitted — customs value corrected"] }));
               refreshCase();
               break;
             case "correction_rejected":
               showToast("info", "Correction rejected — nothing was submitted");
               setConfirmCard(null);
+              setAgentView((v) => ({ ...v, done: true, steps: [...v.steps.slice(-7), "✗ Rejected — nothing submitted"] }));
               refreshCase();
               break;
             case "computer_use_step":
               showToast("info", `🖥️ ${msg.data.step.description}`);
+              setAgentView((v) => ({ ...v, active: true, steps: [...v.steps.slice(-7), msg.data.step.description] }));
+              break;
+            case "computer_use_frame":
+              setAgentView((v) => ({ ...v, active: true, frame: msg.data.image, url: msg.data.url || v.url }));
               break;
             case "day_closed":
               showToast("info", "🌙 Day closed — all agents sleeping");
@@ -315,6 +329,7 @@ export default function App() {
     if (!caseFile) return;
     setIsCorrecing(true);
     showToast("info", "🖥️ Starting Computer Use agent…");
+    setAgentView({ active: true, frame: null, url: "http://localhost:5174", steps: ["Launching browser…"], done: false });
     await fetch(`${API}/api/cases/${caseFile.caseId}/correct`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -795,6 +810,52 @@ export default function App() {
                 ✓ Approve &amp; Submit
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Live Agent Screen (Computer Use) ===== */}
+      {agentView.active && (
+        <div
+          style={{
+            position: "fixed", right: 20, bottom: 20, width: 460, maxWidth: "calc(100vw - 40px)",
+            background: "var(--bg-elevated, #0f1420)", border: "1px solid var(--border, #22304a)",
+            borderRadius: 12, boxShadow: "0 20px 60px rgba(0,0,0,0.55)", overflow: "hidden", zIndex: 50,
+          }}
+        >
+          {/* title bar */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--border, #22304a)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", fontWeight: 600 }}>
+              <span>🖥️ Agent Screen</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.58rem", color: agentView.done ? "var(--success, #34d399)" : "#f59e0b" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: agentView.done ? "#34d399" : "#f59e0b", display: "inline-block" }} />
+                {agentView.done ? "DONE" : "LIVE"}
+              </span>
+            </div>
+            <button onClick={() => setAgentView((v) => ({ ...v, active: false }))} style={{ background: "none", border: "none", color: "var(--text-muted, #7c89a3)", cursor: "pointer", fontSize: "0.9rem" }}>✕</button>
+          </div>
+          {/* browser url bar */}
+          <div style={{ padding: "0.35rem 0.6rem", fontSize: "0.65rem", fontFamily: "monospace", color: "var(--text-secondary, #9aa7bf)", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid var(--border, #22304a)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            🔒 {agentView.url || "customs portal"}
+          </div>
+          {/* streamed browser screenshot, or a placeholder in demo mode */}
+          <div style={{ background: "#0a0d14", minHeight: 180 }}>
+            {agentView.frame ? (
+              <img src={agentView.frame} alt="agent browser view" style={{ display: "block", width: "100%" }} />
+            ) : (
+              <div style={{ padding: "1.5rem 1.25rem", textAlign: "center", color: "var(--text-muted, #6b7891)", fontSize: "0.72rem", lineHeight: 1.6 }}>
+                The agent is operating the customs portal.<br />
+                <span style={{ opacity: 0.7 }}>Live screenshots stream here in live mode (set <code>GEMINI_API_KEY</code> + <code>COMPUTER_USE_MODE=live</code>).</span>
+              </div>
+            )}
+          </div>
+          {/* action feed */}
+          <div style={{ maxHeight: 120, overflowY: "auto", padding: "0.5rem 0.6rem", borderTop: "1px solid var(--border, #22304a)", fontSize: "0.68rem" }}>
+            {agentView.steps.map((s, i) => (
+              <div key={i} style={{ color: i === agentView.steps.length - 1 ? "var(--text, #dfe6f2)" : "var(--text-muted, #64708a)", padding: "0.1rem 0" }}>
+                <span style={{ opacity: 0.5 }}>›</span> {s}
+              </div>
+            ))}
           </div>
         </div>
       )}
