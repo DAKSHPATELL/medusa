@@ -1,13 +1,21 @@
 # dependencies
 node_modules/
 
-# environment
+# environment — NEVER commit real keys
 .env
 .env.local
 .env.*.local
+server/.env
 
 # runtime data (SQLite database, uploads)
 data/
+*.db
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+*.db-wal
+*.db-shm
 
 # next.js
 .next/
@@ -15,6 +23,7 @@ out/
 
 # build artifacts
 dist/
+build/
 *.tsbuildinfo
 
 # verification screenshots
@@ -22,9 +31,20 @@ verification/
 
 # misc
 .DS_Store
+Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 .turbo/
+*.log
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Antigravity brain / artifacts
+.gemini/
 
 # Python (ClearBorder V2 backend)
 backend/.venv/
