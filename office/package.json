@@ -1,0 +1,13 @@
+{
+  "name": "@clearborder/office",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 5175",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "typescript": "^5.7.3"
+  }
+}
