@@ -18,7 +18,7 @@ import { Replayer } from "./replayer";
 import { seedAll } from "./seed";
 import { voiceSessions } from "./voice/index";
 import {
-  TwilioGeminiBridge,
+  createTwilioBridge,
   buildVoiceTwiml,
   checkTwilioStatus,
   initiateOutboundCall,
@@ -315,7 +315,13 @@ app.post<{ Querystring: { callId?: string; caseId?: string } }>("/twilio/voice",
 });
 
 app.get("/twilio/stream", { websocket: true }, (socket) => {
-  const bridge = new TwilioGeminiBridge(socket, hub);
+  const bridge = createTwilioBridge(socket, hub, {
+    db,
+    memory: orchestrator.getMemory(),
+    onInboundComplete: (result) => {
+      if (result.caseId) orchestrator.resumeAfterInboundVoice(result as { caseId: string; confirmedValue: number; summary: string });
+    },
+  });
   socket.on("message", (raw) => bridge.handleMessage(raw as string | Buffer));
   socket.on("close", () => bridge.cleanup());
   socket.on("error", () => bridge.cleanup());

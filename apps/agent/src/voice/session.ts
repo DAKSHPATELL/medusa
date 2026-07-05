@@ -25,6 +25,10 @@ export interface VoiceCompletePayload {
   summary: string;
   confirmedValue: number;
   transcripts: VoiceTranscriptLine[];
+  /** When true, orchestrator should resume PORTAL_FILL with confirmedValue. */
+  schedulePortalFill?: boolean;
+  caseId?: string;
+  holdReason?: string;
 }
 
 interface PendingSession {

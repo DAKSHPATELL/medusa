@@ -1,8 +1,19 @@
 import * as alawmulaw from "alawmulaw";
-import { Modality } from "@google/genai";
+import { Modality, type Tool } from "@google/genai";
+import type Database from "better-sqlite3";
 import type { WebSocket } from "ws";
 import type { EventHub } from "../hub";
+import type { MemoryEngine } from "../orchestrator/memory";
 import { getGemini, geminiModels } from "../gemini/client";
+import {
+  VoiceAgentTools,
+  VOICE_AGENT_TOOL_DECLARATIONS,
+  buildInboundSystemInstruction,
+  buildOutboundSystemInstruction,
+  createVoiceAgentState,
+  resolveConfirmedValue,
+  type VoiceAgentState,
+} from "./agent-tools";
 import {
   buildStreamWssUrl,
   getTwilioConfig,
@@ -43,23 +54,15 @@ class LinearResampler {
   }
 }
 
-const INBOUND_SYSTEM_INSTRUCTION = [
-  "You are ClearBorder, a licensed customs brokerage AI agent on a live inbound phone call.",
-  "The caller is a shipper, importer, or freight broker with a parcel held at customs.",
-  "Your job: resolve valuation holds and declaration mismatches so the shipment can clear.",
-  "Start by asking for the waybill or tracking number, then the invoice number if needed.",
-  "Clarify whether the declared customs value matches the commercial invoice total; ask what the correct amount is.",
-  "If the shipper explains a data-entry error (e.g. decimal point), confirm the corrected value before ending.",
-  "Speak in a calm, professional broker tone — concise sentences suited to phone conversation.",
-  "Support English, Mandarin Chinese (中文), and Turkish (Türkçe): match the caller's language or offer brief translation.",
-].join(" ");
-
 type GeminiLiveSession = {
   close: () => void;
   sendRealtimeInput: (input: { audio: { data: string; mimeType: string } }) => void;
   sendClientContent: (content: {
     turns: Array<{ role: string; parts: Array<{ text: string }> }>;
     turnComplete: boolean;
+  }) => void;
+  sendToolResponse: (params: {
+    functionResponses: Array<{ id: string; name: string; response: Record<string, unknown> }>;
   }) => void;
 };
 
@@ -77,7 +80,21 @@ interface TranscriptLine {
   translatedText: string;
 }
 
-/** Manages one Twilio Media Stream ↔ Gemini Live session. */
+export interface InboundVoiceCompleteResult {
+  caseId?: string;
+  confirmedValue: number;
+  summary: string;
+  schedulePortalFill: boolean;
+  transcripts: TranscriptLine[];
+}
+
+export interface TwilioBridgeDeps {
+  db: Database.Database;
+  memory: MemoryEngine;
+  onInboundComplete?: (result: InboundVoiceCompleteResult) => void;
+}
+
+/** Manages one Twilio Media Stream ↔ Gemini Live voice agent session. */
 export class TwilioGeminiBridge {
   private streamSid: string | null = null;
   private callSid: string | null = null;
@@ -94,12 +111,23 @@ export class TwilioGeminiBridge {
   private downResampler = new LinearResampler(24000, 8000);
   private outboundMulaw: number[] = [];
   private readonly model: string;
+  private agentState: VoiceAgentState = createVoiceAgentState();
+  private tools: VoiceAgentTools;
+  private direction: "inbound" | "outbound" = "inbound";
+  private readonly db: Database.Database;
+  private readonly memory: MemoryEngine;
+  private onInboundComplete?: (result: InboundVoiceCompleteResult) => void;
 
   constructor(
     private ws: WebSocket,
     private hub: EventHub,
+    deps: TwilioBridgeDeps,
   ) {
     this.model = geminiModels().LIVE_MODEL;
+    this.db = deps.db;
+    this.memory = deps.memory;
+    this.onInboundComplete = deps.onInboundComplete;
+    this.tools = new VoiceAgentTools(deps.db, hub, deps.memory, {});
   }
 
   handleMessage(raw: string | Buffer): void {
@@ -139,37 +167,74 @@ export class TwilioGeminiBridge {
     void this.onStop();
   }
 
+  private activeCaseId(): string | undefined {
+    return this.ctx?.caseId ?? this.agentState.caseId;
+  }
+
+  private activeDay(): number | undefined {
+    return this.ctx?.day;
+  }
+
+  private shipperLangCode(): string {
+    return this.ctx?.shipperLanguageCode ?? this.agentState.shipperLanguageCode ?? "en";
+  }
+
   private async onStart(start: TwilioStartPayload): Promise<void> {
     this.streamSid = start.streamSid;
     this.callSid = start.callSid;
     this.callId = start.customParameters?.callId ?? start.callSid;
     this.ctx = voiceSessions.getContext(this.callId);
+    this.direction = this.ctx ? "outbound" : "inbound";
+
+    this.tools = new VoiceAgentTools(this.db, this.hub, this.memory, {
+      day: this.ctx?.day,
+      callId: this.callId,
+    });
 
     if (this.ctx) {
+      this.agentState.caseId = this.ctx.caseId;
+      this.agentState.currency = this.ctx.currency;
+      this.agentState.shipperName = this.ctx.shipperName;
+      this.agentState.shipperLanguageCode = this.ctx.shipperLanguageCode;
       this.hub.emit(
         {
           type: "agent.thought",
           caseId: this.ctx.caseId,
-          text: "Gemini Live connected — customs clarification call active.",
+          text: "Gemini Live voice agent connected — outbound customs clarification call.",
         },
         { day: this.ctx.day },
       );
     } else {
-      console.log(`[twilio] inbound call ${start.callSid} (no orchestrator session)`);
+      this.hub.emit({
+        type: "call.started",
+        caseId: undefined,
+        callId: this.callId,
+        phone: "inbound",
+        shipperName: "Caller",
+        direction: "inbound",
+        sourceLang: "en",
+        targetLang: "en",
+      });
+      this.hub.emit({
+        type: "agent.thought",
+        text: "Inbound PSTN call — Gemini Live customs agent active. Will identify parcel and resolve hold.",
+      });
+      console.log(`[twilio] inbound call ${start.callSid}`);
     }
 
     const ai = getGemini();
     if (!ai) {
-      console.error("[twilio] GEMINI_API_KEY missing — cannot bridge call");
+      console.error("[twilio] GEMINI_API_KEY missing — cannot start voice agent");
       this.ws.close();
       return;
     }
 
     const systemInstruction = this.ctx
-      ? this.buildOutboundSystemInstruction(this.ctx)
-      : INBOUND_SYSTEM_INSTRUCTION;
+      ? buildOutboundSystemInstruction(this.ctx)
+      : buildInboundSystemInstruction();
 
     const ctx = this.ctx;
+    const callId = this.callId;
 
     try {
       this.geminiSession = (await ai.live.connect({
@@ -179,6 +244,7 @@ export class TwilioGeminiBridge {
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           systemInstruction,
+          tools: VOICE_AGENT_TOOL_DECLARATIONS as unknown as Tool[],
         },
         callbacks: {
           onopen: () => {
@@ -190,7 +256,7 @@ export class TwilioGeminiBridge {
                     role: "user",
                     parts: [
                       {
-                        text: `Begin the customs call. Ask ${ctx.shipperName} to confirm invoice ${ctx.invoiceNumber} total ${ctx.currency} ${ctx.invoiceValue.toFixed(2)} versus declared ${ctx.declaredValue.toFixed(2)}.`,
+                        text: `Begin the outbound customs call to ${ctx.shipperName}. Explain the valuation hold on tracking ${ctx.trackingNumber} — declared ${ctx.currency} ${ctx.declaredValue.toFixed(2)} vs invoice ${ctx.invoiceNumber} ${ctx.currency} ${ctx.invoiceValue.toFixed(2)}. Ask them to confirm the correct total, then use record_clarification and schedule_portal_amendment.`,
                       },
                     ],
                   },
@@ -202,12 +268,17 @@ export class TwilioGeminiBridge {
                 turns: [
                   {
                     role: "user",
-                    parts: [{ text: "Greet the caller and ask how you can help with their customs declaration." }],
+                    parts: [
+                      {
+                        text: "Greet the inbound caller as ClearBorder customs agent. Ask how you can help with their held parcel, and request the waybill or tracking number if they have not given it yet.",
+                      },
+                    ],
                   },
                 ],
                 turnComplete: true,
               });
             }
+            console.log(`[twilio] Gemini Live agent ready callId=${callId} model=${this.model}`);
           },
           onmessage: (message) => this.onGeminiMessage(message),
           onerror: (err) => {
@@ -241,6 +312,9 @@ export class TwilioGeminiBridge {
   }
 
   private onGeminiMessage(message: {
+    toolCall?: {
+      functionCalls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>;
+    };
     serverContent?: {
       interrupted?: boolean;
       inputTranscription?: { text?: string };
@@ -249,6 +323,10 @@ export class TwilioGeminiBridge {
       turnComplete?: boolean;
     };
   }): void {
+    if (message.toolCall?.functionCalls?.length) {
+      this.handleToolCalls(message.toolCall.functionCalls);
+    }
+
     const sc = message.serverContent;
     if (!sc) return;
 
@@ -286,6 +364,37 @@ export class TwilioGeminiBridge {
     }
   }
 
+  private handleToolCalls(
+    calls: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>,
+  ): void {
+    if (!this.geminiSession) return;
+
+    const functionResponses: Array<{ id: string; name: string; response: Record<string, unknown> }> =
+      [];
+
+    for (const fc of calls) {
+      const name = fc.name ?? "unknown";
+      const args = (fc.args ?? {}) as Record<string, unknown>;
+      const { response, state } = this.tools.executeToolCall(name, args, this.agentState);
+      this.agentState = state;
+
+      functionResponses.push({
+        id: fc.id ?? `fc-${Date.now()}`,
+        name,
+        response,
+      });
+
+      console.log(`[twilio] tool ${name} caseId=${this.activeCaseId() ?? "?"}`);
+    }
+
+    try {
+      this.geminiSession.sendToolResponse({ functionResponses });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[twilio] sendToolResponse failed: ${msg.slice(0, 120)}`);
+    }
+  }
+
   private enqueueGeminiAudio(base64Pcm: string): void {
     if (!this.streamSid) return;
     const buf = Buffer.from(base64Pcm, "base64");
@@ -315,13 +424,14 @@ export class TwilioGeminiBridge {
   }
 
   private emitTranscript(partial: boolean, speaker: "agent" | "shipper", text: string): void {
-    if (!this.ctx || !this.callId) return;
-    const sourceLang = speaker === "agent" ? "en" : this.ctx.shipperLanguageCode;
-    const targetLang = speaker === "agent" ? this.ctx.shipperLanguageCode : "en";
+    const caseId = this.activeCaseId();
+    if (!this.callId) return;
+    const sourceLang = speaker === "agent" ? "en" : this.shipperLangCode();
+    const targetLang = speaker === "agent" ? this.shipperLangCode() : "en";
     this.hub.emit(
       {
         type: partial ? "call.transcript_partial" : "call.transcript_final",
-        caseId: this.ctx.caseId,
+        caseId,
         callId: this.callId,
         speaker,
         sourceLang,
@@ -329,13 +439,13 @@ export class TwilioGeminiBridge {
         sourceText: text,
         translatedText: text,
       },
-      { day: this.ctx.day },
+      { day: this.activeDay() },
     );
   }
 
   private finalizeTranscript(speaker: "agent" | "shipper", text: string): void {
-    const sourceLang = speaker === "agent" ? "en" : this.ctx?.shipperLanguageCode ?? "zh-CN";
-    const targetLang = speaker === "agent" ? this.ctx?.shipperLanguageCode ?? "zh-CN" : "en";
+    const sourceLang = speaker === "agent" ? "en" : this.shipperLangCode();
+    const targetLang = speaker === "agent" ? this.shipperLangCode() : "en";
     const line: TranscriptLine = {
       speaker,
       sourceLang,
@@ -344,11 +454,11 @@ export class TwilioGeminiBridge {
       translatedText: text,
     };
     this.transcripts.push(line);
-    if (this.ctx && this.callId) {
+    if (this.callId) {
       this.hub.emit(
         {
           type: "call.transcript_final",
-          caseId: this.ctx.caseId,
+          caseId: this.activeCaseId(),
           callId: this.callId,
           speaker,
           sourceLang,
@@ -356,24 +466,9 @@ export class TwilioGeminiBridge {
           sourceText: text,
           translatedText: text,
         },
-        { day: this.ctx.day },
+        { day: this.activeDay() },
       );
     }
-  }
-
-  private buildOutboundSystemInstruction(ctx: VoiceSessionContext): string {
-    const gap = Math.abs(ctx.invoiceValue - ctx.declaredValue);
-    return [
-      "You are ClearBorder, a licensed customs brokerage AI agent on an outbound phone call.",
-      `Case context — shipper: ${ctx.shipperName} (${ctx.shipperLang}, ${ctx.shipperLanguageCode}), phone ${ctx.phone}.`,
-      `Waybill/tracking: ${ctx.trackingNumber}. Invoice ${ctx.invoiceNumber}.`,
-      `Customs declared value: ${ctx.currency} ${ctx.declaredValue.toFixed(2)}. Commercial invoice total: ${ctx.currency} ${ctx.invoiceValue.toFixed(2)} (gap ${ctx.currency} ${gap.toFixed(2)}).`,
-      "The shipment is on a customs valuation hold until the declared value matches the invoice.",
-      "Ask the shipper to confirm the correct invoice total and whether the declared amount was a data-entry error.",
-      "Record their answer clearly; if they confirm the invoice total, acknowledge before ending.",
-      "Speak in a calm, professional broker tone — concise sentences for phone conversation.",
-      "Support English, Mandarin Chinese (中文), and Turkish (Türkçe): prefer the shipper's language with brief translation as needed.",
-    ].join(" ");
   }
 
   private async onStop(): Promise<void> {
@@ -388,27 +483,68 @@ export class TwilioGeminiBridge {
     this.geminiSession = null;
 
     const durationSec = Math.max(1, Math.round((Date.now() - this.startedAt) / 1000));
-    const confirmedValue = this.ctx?.invoiceValue ?? 0;
+    const confirmedValue = resolveConfirmedValue(
+      this.agentState,
+      this.ctx?.invoiceValue,
+    );
     const transcriptSummary = this.transcripts
       .map((t) => `${t.speaker}: ${t.sourceText}`)
       .join(" · ")
       .slice(0, 400);
     const summary =
-      this.transcripts.length > 0
-        ? `Customs call (${durationSec}s, ${this.transcripts.length} turns)${this.ctx ? ` re ${this.ctx.trackingNumber}` : ""}. ${transcriptSummary}`
-        : `Phone call ended (${durationSec}s).`;
+      this.agentState.clarificationNotes ??
+      (this.transcripts.length > 0
+        ? `Customs call (${durationSec}s, ${this.transcripts.length} turns)${this.activeCaseId() ? ` re case ${this.activeCaseId()}` : ""}. ${transcriptSummary}`
+        : `Phone call ended (${durationSec}s).`);
+
+    const schedulePortalFill =
+      this.agentState.schedulePortalFill &&
+      this.agentState.caseId !== undefined &&
+      confirmedValue > 0;
 
     if (this.ctx && this.callId) {
       const payload: VoiceCompletePayload = {
         summary,
         confirmedValue,
         transcripts: this.transcripts,
+        schedulePortalFill,
+        caseId: this.ctx.caseId,
+        holdReason: this.agentState.holdReason,
       };
       voiceSessions.complete(this.callId, payload);
+    } else if (this.direction === "inbound") {
+      this.hub.emit({
+        type: "call.ended",
+        caseId: this.agentState.caseId,
+        callId: this.callId ?? this.callSid ?? "inbound",
+        durationSec,
+        summary,
+      });
+
+      if (schedulePortalFill && this.agentState.caseId) {
+        this.onInboundComplete?.({
+          caseId: this.agentState.caseId,
+          confirmedValue,
+          summary,
+          schedulePortalFill: true,
+          transcripts: this.transcripts,
+        });
+      }
     }
 
-    console.log(`[twilio] stream ended callSid=${this.callSid ?? "?"} duration=${durationSec}s`);
+    console.log(
+      `[twilio] stream ended callSid=${this.callSid ?? "?"} duration=${durationSec}s confirmed=${confirmedValue} portal=${schedulePortalFill}`,
+    );
   }
+}
+
+/** Factory that binds db/memory deps for the WebSocket handler. */
+export function createTwilioBridge(
+  ws: WebSocket,
+  hub: EventHub,
+  deps: TwilioBridgeDeps,
+): TwilioGeminiBridge {
+  return new TwilioGeminiBridge(ws, hub, deps);
 }
 
 export function buildVoiceTwiml(opts: { callId?: string; caseId?: string } = {}): string {

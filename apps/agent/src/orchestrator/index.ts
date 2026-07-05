@@ -25,6 +25,8 @@ export class Orchestrator {
   private computerUseMode: "gemini" | "scripted";
   private voiceMode: "browser" | "twilio" | "mock";
   private wakeTimer: NodeJS.Timeout | null = null;
+  /** Confirmed customs value from voice agent (caseId → value). */
+  private voiceConfirmedValues = new Map<string, number>();
 
   constructor(
     private db: Database.Database,
@@ -39,6 +41,26 @@ export class Orchestrator {
 
   get modes() {
     return { computerUse: this.computerUseMode, voice: this.voiceMode };
+  }
+
+  getMemory(): MemoryEngine {
+    return this.memory;
+  }
+
+  /** Resume PORTAL_FILL after an inbound PSTN call resolved a case. */
+  resumeAfterInboundVoice(result: {
+    caseId: string;
+    confirmedValue: number;
+    summary: string;
+  }): void {
+    this.voiceConfirmedValues.set(result.caseId, result.confirmedValue);
+    setCasePhase(this.db, result.caseId, "PORTAL_FILL");
+    this.hub.emit({
+      type: "agent.thought",
+      caseId: result.caseId,
+      text: `Inbound call resolved — amending declaration to confirmed value ${result.confirmedValue.toFixed(2)}. ${result.summary}`,
+    });
+    void this.runCase(result.caseId);
   }
 
   /** Process intake and kick off the agent loop. */
@@ -240,18 +262,28 @@ export class Orchestrator {
             : this.voiceMode === "browser"
               ? runBrowserVoiceCall
               : runMockVoiceCall;
-        await voiceFn(this.hub, this.memory, { caseId, case: rec, shipper: shipperRow, day });
+        const voiceResult = await voiceFn(this.hub, this.memory, {
+          caseId,
+          case: rec,
+          shipper: shipperRow,
+          day,
+        });
+        if (voiceResult.confirmedValue > 0) {
+          this.voiceConfirmedValues.set(caseId, voiceResult.confirmedValue);
+        }
         phase = "PORTAL_FILL";
         setCasePhase(this.db, caseId, "PORTAL_FILL");
       }
 
       // ── PORTAL_FILL ──
       if (phase === "PORTAL_FILL") {
+        const correctedValue =
+          this.voiceConfirmedValues.get(caseId) ?? rec.shipment.invoiceValue;
         this.hub.emit(
           {
             type: "agent.thought",
             caseId,
-            text: `Opening TradeGate to amend declaration ${rec.declarationRef} — correcting declared value to match invoice.`,
+            text: `Opening TradeGate to amend declaration ${rec.declarationRef} — correcting declared value to ${rec.shipment.currency} ${correctedValue.toFixed(2)} (confirmed on call).`,
           },
           { day },
         );
@@ -261,7 +293,7 @@ export class Orchestrator {
             caseId,
             declarationId: ctx.declarationId,
             declarationRef: rec.declarationRef,
-            correctedValue: rec.shipment.invoiceValue,
+            correctedValue,
             currency: rec.shipment.currency,
             day,
           },
@@ -286,7 +318,7 @@ export class Orchestrator {
             caseId,
             declarationId: ctx.declarationId!,
             declarationRef: rec.declarationRef,
-            correctedValue: rec.shipment.invoiceValue,
+            correctedValue,
             currency: rec.shipment.currency,
             day,
           });
@@ -294,11 +326,12 @@ export class Orchestrator {
             {
               type: "episodic",
               caseId,
-              content: `Amendment submitted on TradeGate with operator approval: declared value corrected to ${rec.shipment.currency} ${rec.shipment.invoiceValue.toFixed(2)}.`,
+              content: `Amendment submitted on TradeGate with operator approval: declared value corrected to ${rec.shipment.currency} ${correctedValue.toFixed(2)}.`,
               source: "TradeGate portal session",
             },
             { caseId, day },
           );
+          this.voiceConfirmedValues.delete(caseId);
           await this.goToSleep(caseId, day);
         });
       }
