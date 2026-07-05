@@ -6,6 +6,9 @@ A package is stuck at the border: the shipper fat-fingered the declared value ($
 
 Built for a Google DeepMind competition on agents with persistent memory over long-horizon tasks.
 
+
+<img width="1849" height="1054" alt="image" src="https://github.com/user-attachments/assets/805330f2-b804-41aa-a2cf-0d74c8304f28" />
+
 ---
 
 ## ClearBorder V2 (Statement Four hackathon build)
