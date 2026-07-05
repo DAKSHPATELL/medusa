@@ -15,6 +15,7 @@
 import { broadcast } from "./events.js";
 import type { CaseFile, Discrepancy } from "@clearborder/core";
 import { runLiveCorrection, liveConfirmSubmit, liveReject, hasLiveSession } from "./computer-use-live.js";
+import { driveDemoCorrection } from "./browser-drive.js";
 
 // Live mode drives the real portal with Gemini Computer Use; requires an API key.
 // Default is the simulated demo path (no key, no browser needed).
@@ -125,84 +126,50 @@ function determineCorrectionFromDiscrepancy(
 
 /**
  * The Computer Use amendment loop.
- * Steps through the portal correction, emitting computer_use_step events,
- * then HALTS before Submit and emits needs_confirmation.
+ * Drives the portal correction (emitting computer_use_step + computer_use_frame
+ * events), then HALTS before Submit and emits needs_confirmation.
  *
- * In demo mode: simulated with delays.
- * In live mode: would use Playwright + Gemini 2.5 screenshot→action loop.
+ * Demo mode first tries to drive the REAL portal headless via Playwright so the
+ * UI shows actual screenshots of the computer working; if that's unavailable
+ * (no browser / portal down) it falls back to a pure event simulation.
+ * Live mode (COMPUTER_USE_MODE=live) uses Gemini Computer Use — see startCorrection.
  */
 async function amendEntry(pending: PendingCorrection): Promise<void> {
   const { caseId, field, from, to } = pending;
 
-  // Define the simulated step sequence
-  const steps: CorrectionStep[] = [
-    {
-      action: "navigate",
-      target: "http://localhost:5174",
-      description: "Opening EU Customs Portal — Single Window",
-    },
-    {
-      action: "click",
-      target: `#${field}`,
-      description: `Locating field: ${fieldLabel(field)}`,
-    },
-    {
-      action: "clear",
-      target: `#${field}`,
-      description: `Clearing current value: "${from}"`,
-    },
-    {
-      action: "type",
-      target: `#${field}`,
-      value: to,
-      description: `Typing corrected value: "${to}"`,
-    },
-    {
-      action: "scroll",
-      target: "#submitBtn",
-      description: "Scrolling to Submit Declaration button",
-    },
-    {
-      action: "halt",
-      target: "#submitBtn",
-      description: "⏸ HALTING before Submit — awaiting human confirmation",
-    },
-  ];
+  // Prefer a real headless browser (real screenshots streamed to the UI).
+  const drove = await driveDemoCorrection({ caseId, to });
 
-  // Execute each step with delay (demo mode simulation)
-  for (const step of steps) {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    pending.steps.push(step);
-
-    if (step.action === "halt") {
-      // HALT — do NOT click submit
-      pending.status = "awaiting_confirmation";
-
-      broadcast("needs_confirmation", {
-        caseId,
-        discrepancyId: pending.discrepancyId,
-        correction: {
-          field: pending.field,
-          fieldLabel: fieldLabel(pending.field),
-          from: pending.from,
-          to: pending.to,
-        },
-        discrepancy: pending.discrepancy,
-        message: "Computer Use agent has amended the field and is ready to submit. Awaiting your approval.",
-      });
-
-      return; // ← THE GATE: we return here, Submit is never reached
+  if (!drove) {
+    // Fallback: pure event simulation (no browser needed).
+    const steps: CorrectionStep[] = [
+      { action: "navigate", target: "http://localhost:5174", description: "Opening EU Customs Portal — Single Window" },
+      { action: "click", target: `#${field}`, description: `Locating field: ${fieldLabel(field)}` },
+      { action: "clear", target: `#${field}`, description: `Clearing current value: "${from}"` },
+      { action: "type", target: `#${field}`, value: to, description: `Typing corrected value: "${to}"` },
+      { action: "scroll", target: "#submitBtn", description: "Scrolling to Submit Declaration button" },
+    ];
+    for (const step of steps) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      pending.steps.push(step);
+      broadcast("computer_use_step", { caseId, step, stepIndex: pending.steps.length, totalSteps: steps.length + 1 });
     }
-
-    // Emit step event for office animation
-    broadcast("computer_use_step", {
-      caseId,
-      step,
-      stepIndex: pending.steps.length,
-      totalSteps: steps.length,
-    });
   }
+
+  // THE GATE: halt before Submit and wait for explicit human approval.
+  pending.status = "awaiting_confirmation";
+  broadcast("needs_confirmation", {
+    caseId,
+    discrepancyId: pending.discrepancyId,
+    correction: {
+      field: pending.field,
+      fieldLabel: fieldLabel(pending.field),
+      from: pending.from,
+      to: pending.to,
+    },
+    discrepancy: pending.discrepancy,
+    message: "Computer Use agent has amended the field and is ready to submit. Awaiting your approval.",
+  });
 }
 
 /**
