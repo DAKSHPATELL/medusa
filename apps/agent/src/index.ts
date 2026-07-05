@@ -17,6 +17,13 @@ import { Orchestrator } from "./orchestrator/index";
 import { Replayer } from "./replayer";
 import { seedAll } from "./seed";
 import { voiceSessions } from "./voice/index";
+import {
+  TwilioGeminiBridge,
+  buildVoiceTwiml,
+  checkTwilioStatus,
+  initiateOutboundCall,
+} from "./voice/twilio-bridge";
+import { isTwilioPartiallyConfigured, printTwilioSetupInstructions } from "./voice/twilio-config";
 
 loadRootEnv();
 
@@ -52,6 +59,12 @@ if (geminiOk && computerUseMode === "gemini") {
 } else if (!geminiOk) {
   computerUseMode = "scripted";
   console.log("[agent] GEMINI_API_KEY not set — computer use → scripted, voice → mock");
+}
+
+if (voiceMode === "twilio" && !isTwilioPartiallyConfigured()) {
+  printTwilioSetupInstructions();
+} else if (voiceMode === "twilio" && isTwilioPartiallyConfigured() && !checkTwilioStatus(geminiOk).ok) {
+  console.warn("[agent] VOICE_MODE=twilio but configuration incomplete — see GET /twilio/status");
 }
 
 const app = Fastify({ logger: false });
@@ -292,6 +305,42 @@ app.post<{
   console.log(`[voice] browser Live complete: ${callId}`);
   return { ok: true };
 });
+
+// ── Twilio PSTN ↔ Gemini Live bridge ─────────────────────────────────────────
+
+app.post<{ Querystring: { callId?: string; caseId?: string } }>("/twilio/voice", async (request, reply) => {
+  const { callId, caseId } = request.query ?? {};
+  reply.type("text/xml");
+  return buildVoiceTwiml({ callId, caseId });
+});
+
+app.get("/twilio/stream", { websocket: true }, (socket) => {
+  const bridge = new TwilioGeminiBridge(socket, hub);
+  socket.on("message", (raw) => bridge.handleMessage(raw as string | Buffer));
+  socket.on("close", () => bridge.cleanup());
+  socket.on("error", () => bridge.cleanup());
+});
+
+app.post<{ Body: { to?: string; callId?: string; caseId?: string } }>(
+  "/twilio/outbound",
+  async (request, reply) => {
+    const to = request.body?.to?.trim() || process.env.SHIPPER_PHONE_NUMBER?.trim();
+    const { callId, caseId } = request.body ?? {};
+    if (!to) return reply.status(400).send({ error: "to or SHIPPER_PHONE_NUMBER required" });
+    if (!callId || !caseId) {
+      return reply.status(400).send({ error: "callId and caseId required" });
+    }
+    try {
+      const result = await initiateOutboundCall({ to, callId, caseId });
+      return { ok: true, callSid: result.callSid };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return reply.status(503).send({ error: msg });
+    }
+  },
+);
+
+app.get("/twilio/status", async () => checkTwilioStatus(geminiOk));
 
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });

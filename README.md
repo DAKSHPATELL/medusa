@@ -110,6 +110,10 @@ Copy `.env.example` → `.env` and set `GEMINI_API_KEY` for the real orchestrato
 | --- | --- | --- |
 | `COMPUTER_USE_MODE` | `gemini` \| `scripted` | `gemini` (auto-fallback) |
 | `VOICE_MODE` | `mock` \| `browser` \| `twilio` | `browser` (Gemini Live in-browser; mock fallback on timeout) |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_PHONE_NUMBER` | Twilio credentials | empty — required for `VOICE_MODE=twilio` |
+| `PUBLIC_AGENT_URL` | Public HTTPS base (ngrok), no trailing slash | empty — Twilio webhooks + WSS |
+| `SHIPPER_PHONE_NUMBER` | Outbound demo target (E.164, verified on trial) | empty |
+| `GEMINI_LIVE_MODEL` | Gemini Live model for PSTN bridge | `gemini-2.5-flash-native-audio-preview-12-2025` |
 | `DEMO_TIME_COMPRESSION` | ms per “business day” | `30000` |
 | `BROWSER_HEADLESS` | `true` \| `false` | `true` |
 
@@ -119,6 +123,83 @@ Copy `.env.example` → `.env` and set `GEMINI_API_KEY` for the real orchestrato
 - `GET /api/cases/:id` — case status + orchestrator phase
 - `POST /api/approval` — human-in-the-loop gate (orchestrator or replayer)
 - `POST /api/agent/wake/:caseId` — manual wake for demo
+
+### Twilio PSTN voice (real phone ↔ Gemini Live)
+
+ClearBorder bridges **Twilio Media Streams** (8 kHz μ-law PSTN) to **Gemini Live** (16 kHz in / 24 kHz out PCM) inside `apps/agent`. Architecture:
+
+```
+Your phone ──► Twilio Voice ──► POST /twilio/voice (TwiML)
+                                    │
+                                    ▼
+                         wss://PUBLIC_AGENT_URL/twilio/stream
+                                    │
+                    μ-law ↔ PCM resample (stateful, no clicks)
+                                    │
+                                    ▼
+                         Gemini Live (server-side API key)
+                                    │
+                                    ▼
+                         call.* AgentEvents → dashboard
+```
+
+**Dependencies:** `twilio`, `alawmulaw` (in `apps/agent`).
+
+**Setup**
+
+1. Copy `.env.example` → `.env` and set `GEMINI_API_KEY` (already working) plus:
+
+   ```bash
+   VOICE_MODE=twilio
+   TWILIO_ACCOUNT_SID=AC…
+   TWILIO_AUTH_TOKEN=…
+   TWILIO_PHONE_NUMBER=+1…          # your Twilio number
+   SHIPPER_PHONE_NUMBER=+1…         # verified outbound target (trial)
+   PUBLIC_AGENT_URL=https://xxxx.ngrok-free.app   # NO trailing slash
+   GEMINI_LIVE_MODEL=gemini-2.5-flash-native-audio-preview-12-2025
+   ```
+
+2. Expose the agent (Twilio needs public HTTPS + WSS, not localhost):
+
+   ```bash
+   pnpm dev                              # agent on :8787
+   ngrok http 8787                       # copy https URL → PUBLIC_AGENT_URL
+   ```
+
+3. **Twilio Console** → [Phone Numbers](https://console.twilio.com/us1/develop/phone-numbers/manage/incoming) → your number → **Voice configuration**:
+   - **A call comes in** → Webhook → **POST** → `https://YOUR_NGROK/twilio/voice`
+
+4. **Trial account:** verify your personal phone under **Phone Numbers → Verified Caller IDs** (required for outbound).
+
+5. Validate config:
+
+   ```bash
+   pnpm test:twilio
+   # or: GET http://localhost:8787/twilio/status
+   ```
+
+**Test inbound (primary — dial from your phone)**
+
+1. Start agent + ngrok with `PUBLIC_AGENT_URL` set.
+2. Dial your **Twilio phone number**.
+3. TwiML connects the call to `/twilio/stream`; Gemini Live answers as ClearBorder customs agent (Chinese translation supported).
+
+**Test outbound (orchestrator calls shipper)**
+
+1. Set `VOICE_MODE=twilio` and `SHIPPER_PHONE_NUMBER` to a verified number.
+2. Submit a case at http://localhost:3000 (declared 240 / invoice 2400).
+3. Orchestrator runs `runTwilioVoiceCall` → `POST /twilio/outbound` → your phone rings; answer and talk to Gemini Live.
+
+**Agent Twilio routes**
+
+| Route | Purpose |
+| --- | --- |
+| `POST /twilio/voice` | Twilio webhook → TwiML `<Connect><Stream url="wss://…/twilio/stream">` |
+| `GET /twilio/stream` | Bidirectional Media Streams WebSocket ↔ Gemini Live |
+| `POST /twilio/outbound` | Initiate outbound call (`{ to, callId, caseId }`) |
+| `GET /twilio/status` | Config health check |
+
+If Twilio env vars are missing, the agent **compiles and runs** with mock voice fallback and prints setup instructions at startup.
 
 ---
 
@@ -184,6 +265,7 @@ Envelope on every event: `id`, `seq` (ordering), `at` (ISO), `day` (drives the D
 | `pnpm typecheck` | strict TS across all packages |
 | `pnpm build` | `next build` + typechecks |
 | `pnpm verify [portal\|demo]` | Playwright screenshots into `verification/` (needs `pnpm dev` running; re-seeds when done) |
+| `pnpm test:twilio` | validate Twilio + Gemini Live env vars (`scripts/test-twilio-config.ts`) |
 
 ## What's real vs stubbed
 
@@ -192,7 +274,7 @@ Envelope on every event: `id`, `seq` (ordering), `at` (ISO), `day` (drives the D
 | **Orchestrator** (state machine, sleep/wake, approval gate) | **Real** — SQLite-persisted per case |
 | **Memory engine** (episodic write, recall, wake recap, shipper patterns) | **Real** — embeddings when Gemini key present |
 | **Portal automation** | **Real Playwright** — `scripted` path uses `PORTAL_TEST_IDS`; `gemini` smoke-tests CU then runs scripted for demo reliability |
-| **Voice** | **`mock`** default (bilingual transcripts); **`browser`** / **`twilio`** stubs log intent, same transcripts until Twilio bridge is configured |
+| **Voice** | **`mock`** default (bilingual transcripts); **`browser`** = Gemini Live in-browser; **`twilio`** = real PSTN via Media Streams bridge (mock fallback if not configured) |
 | **Demo replayer** (Day 1/2/3 hero story) | **Real events**, scripted timing — coexists with live intake cases |
 | **Gemini computer use loop** | Smoke-tested at startup; full screenshot→act loop abbreviated for token budget — extend in `apps/agent/src/browser/computer-use.ts` |
-| Twilio PSTN bridge | Stub — falls back to mock; architecture in `docs/research-part2.md` |
+| Twilio PSTN bridge | **Real** — Media Streams ↔ Gemini Live in `apps/agent/src/voice/twilio-bridge.ts`; see README § Twilio PSTN voice |

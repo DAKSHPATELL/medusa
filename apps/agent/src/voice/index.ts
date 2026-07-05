@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { CaseRecord, Shipper } from "@clearborder/shared";
 import type { EventHub } from "../hub";
 import type { MemoryEngine } from "../orchestrator/memory";
-import { voiceSessions, type VoiceSessionContext } from "./session";
+import { getGemini } from "../gemini/client";
+import { voiceSessions, type VoiceSessionContext, type VoiceTranscriptLine } from "./session";
 
 export interface VoiceCallParams {
   caseId: string;
@@ -235,25 +236,99 @@ export async function runBrowserVoiceCall(
   }
 }
 
-/** Twilio path stub — real bridge when TWILIO_* env vars are set. */
+function emitTwilioCallComplete(
+  hub: EventHub,
+  memory: MemoryEngine,
+  ctx: VoiceSessionContext,
+  shipperId: string,
+  result: { summary: string; confirmedValue: number; transcripts: VoiceTranscriptLine[] },
+): void {
+  const { caseId, callId, day } = ctx;
+
+  memory.write(
+    {
+      type: "episodic",
+      caseId,
+      shipperId,
+      content: `${ctx.shipperName} confirmed invoice ${ctx.invoiceNumber} total = ${ctx.currency} ${result.confirmedValue.toFixed(2)} via Gemini Live PSTN call; declared ${ctx.declaredValue.toFixed(2)} was a decimal-entry error.`,
+      source: "Gemini Live call (Twilio PSTN)",
+    },
+    { caseId, day },
+  );
+
+  hub.emit(
+    {
+      type: "call.ended",
+      caseId,
+      callId,
+      durationSec: Math.max(30, result.transcripts.length * 20),
+      summary: result.summary,
+    },
+    { day },
+  );
+}
+
+/** Twilio PSTN voice — Media Streams bridge to Gemini Live; mock fallback if not configured. */
 export async function runTwilioVoiceCall(
   hub: EventHub,
   memory: MemoryEngine,
   params: VoiceCallParams,
 ): Promise<{ callId: string; confirmedValue: number }> {
-  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
-  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
-  const from = process.env.TWILIO_PHONE_NUMBER?.trim();
-  if (!sid || !token || !from) {
+  const { isTwilioConfigured, getTwilioConfig, initiateOutboundCall } = await import("./twilio-bridge");
+  const { printTwilioSetupInstructions } = await import("./twilio-config");
+
+  if (!isTwilioConfigured()) {
     console.warn("[voice] Twilio not configured — falling back to mock");
+    printTwilioSetupInstructions();
     return runMockVoiceCall(hub, memory, params);
   }
+
+  if (!getGemini()) {
+    console.warn("[voice] GEMINI_API_KEY missing — Twilio bridge requires Gemini Live");
+    return runMockVoiceCall(hub, memory, params);
+  }
+
+  const { caseId, case: rec, shipper, day } = params;
+  const callId = randomUUID();
+  const ctx = buildSessionContext(params, callId);
+  const cfg = getTwilioConfig();
+  const toPhone = cfg.shipperPhone || shipper.phone;
+
+  hub.emit(
+    {
+      type: "call.started",
+      caseId,
+      callId,
+      phone: toPhone,
+      shipperName: shipper.name,
+      direction: "outbound",
+      sourceLang: shipper.languageCode,
+      targetLang: "en",
+    },
+    { day },
+  );
+
   hub.emit({
     type: "agent.thought",
-    caseId: params.caseId,
-    text: `Placing outbound call to ${params.shipper.phone} via Twilio Media Streams → Gemini Live.`,
+    caseId,
+    text: `Placing outbound PSTN call to ${toPhone} via Twilio Media Streams → Gemini Live.`,
   });
-  return runMockVoiceCall(hub, memory, params);
+
+  const waitMs = Number(process.env.VOICE_TWILIO_TIMEOUT_MS ?? 300_000);
+  const sessionPromise = voiceSessions.register(ctx, waitMs);
+
+  try {
+    await initiateOutboundCall({ to: toPhone, callId, caseId });
+    const result = await sessionPromise;
+    emitTwilioCallComplete(hub, memory, ctx, shipper.id, result);
+    return { callId, confirmedValue: result.confirmedValue };
+  } catch (err) {
+    console.warn(
+      `[voice] Twilio call failed (${err instanceof Error ? err.message : String(err)}) — mock fallback`,
+    );
+    voiceSessions.cancel(callId);
+    return runMockVoiceCall(hub, memory, params, { callId, skipStarted: true });
+  }
 }
 
 function delay(ms: number): Promise<void> {

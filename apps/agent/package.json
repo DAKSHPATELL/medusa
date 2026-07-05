@@ -9,16 +9,19 @@
     "start": "tsx src/index.ts",
     "seed": "tsx src/seed.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "test:twilio-config": "tsx ../../scripts/test-twilio-config.ts"
   },
   "dependencies": {
     "@clearborder/shared": "workspace:*",
     "@fastify/cors": "^11.2.0",
     "@fastify/websocket": "^11.2.0",
     "@google/genai": "^1.30.0",
+    "alawmulaw": "^6.0.0",
     "better-sqlite3": "^12.11.1",
     "fastify": "^5.9.0",
-    "playwright": "^1.61.1"
+    "playwright": "^1.61.1",
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
