@@ -122,6 +122,20 @@ and **streams its live screen into the office** — and stops at the approval ga
 let it submit. If the key or model is unavailable, it falls back to the scripted path automatically, so
 the demo never hard-fails. (Models are Gemini previews — re-verify `CU_MODEL` in `.env` before a run.)
 
+### Watch the agent drive the portal (no key needed)
+
+To *see* the browser automation clicking the real portal without a Gemini key:
+
+```bash
+pnpm dev:portal                       # serve the customs portal on :5174
+HEADLESS=false OUT=/tmp/cb-drive node scripts/watch-agent-drive-portal.mjs
+```
+
+A real Chromium window opens, navigates the EU portal, clicks the *Packing List Value* field, types
+the corrected €47,250.00, and **stops at Submit**. This runs the same Playwright engine the Computer
+Use agent uses — in full live mode Gemini decides each action from screenshots; here the actions are
+fixed so you can watch the mechanics. (Screenshots land in `OUT` if set.)
+
 ### Live Product Mode (persistence, made visible)
 
 Beyond the pitch demo, the server runs a **memory-session worker**: it resumes each registered case on
