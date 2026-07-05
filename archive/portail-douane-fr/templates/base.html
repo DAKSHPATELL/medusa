@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}DELTA-X Fret Express — Portail douanier{% endblock %}</title>
+    <link rel="icon" href="/static/img/favicon.ico">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="page">
+    <header class="header">
+        <div class="marianne">
+            <span class="rf">RÉPUBLIQUE</span>
+            <span class="rf">FRANÇAISE</span>
+            <span style="font-weight:400;font-size:11px;">Liberté · Égalité · Fraternité</span>
+        </div>
+        <div class="direction">
+            <strong>DIRECTION GÉNÉRALE DES DOUANES</strong><br>
+            ET DROITS INDIRECTS
+        </div>
+    </header>
+
+    <div class="sous-bandeau">DELTA-X — Fret Express et Postal</div>
+
+    {% block nav %}
+    <nav class="nav">
+        <a href="/courtier/dashboard" class="{% if active_nav == 'dashboard' %}active{% endif %}">Tableau de bord</a>
+        <a href="/courtier/declarations" class="{% if active_nav == 'declarations' %}active{% endif %}">Déclarations</a>
+        <a href="/courtier/documents" class="{% if active_nav == 'documents' %}active{% endif %}">Documents</a>
+        <a href="/courtier/messagerie" class="{% if active_nav == 'messagerie' %}active{% endif %}">Messagerie{% if unread %} <span class="badge">{{ unread }}</span>{% endif %}</a>
+        <a href="/courtier/compte" class="{% if active_nav == 'compte' %}active{% endif %}">Mon compte</a>
+    </nav>
+    {% endblock %}
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-title">DIRECTION GÉNÉRALE DES DOUANES ET DROITS INDIRECTS</div>
+        <div>
+            <a href="#">Plan du site</a> &nbsp;·&nbsp;
+            <a href="#">Accessibilité : non conforme</a> &nbsp;·&nbsp;
+            <a href="#">Mentions légales</a> &nbsp;·&nbsp;
+            <a href="#">Données personnelles</a> &nbsp;·&nbsp;
+            <a href="#">Gestion des cookies</a>
+        </div>
+        <div class="mentions">
+            Sauf mention contraire, tous les contenus de ce site sont sous
+            licence etalab-2.0 — © 2026 République française —
+            Portail de dédouanement DELTA-X (maquette de démonstration).
+        </div>
+    </footer>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

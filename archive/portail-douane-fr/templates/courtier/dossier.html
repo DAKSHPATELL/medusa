@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% set active_nav = "declarations" %}
+{% block title %}Dossier {{ case.case_id }} — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Dossier {{ case.case_id }}</h1>
+<p class="text-secondaire">
+    Déclaration {{ case.declaration_type }} — MRN <span class="mono">{{ case.mrn }}</span> —
+    <span class="statut statut-{{ case.status }}">{{ status_labels[case.status] }}</span>
+</p>
+
+{% if case.status == 'hold' %}
+<div class="alerte" id="bandeau-hold">
+    <span class="alerte-titre">⚠ HOLD DOUANIER — {{ case.hold_reason or "Contrôle en cours" }}</span>
+    Ce dossier est bloqué depuis le {{ case.hold_since }}. Un message du bureau des douanes
+    est disponible dans votre <a href="/courtier/messagerie">messagerie</a>. Vous devez justifier
+    l'écart de valeur ou corriger la valeur déclarée sous 5 jours ouvrés.
+</div>
+{% elif case.status == 'pending_docs' %}
+<div class="alerte alerte-orange" id="bandeau-docs">
+    <span class="alerte-titre">📎 DOCUMENT COMPLÉMENTAIRE REQUIS</span>
+    La douane demande un justificatif pour finaliser le traitement. Consultez l'onglet
+    <a href="/courtier/dossier/{{ case.case_id }}?tab=documents">Documents</a> et votre
+    <a href="/courtier/messagerie">messagerie</a>.
+</div>
+{% elif case.status == 'released' %}
+<div class="alerte alerte-succes">
+    <span class="alerte-titre">✓ MAINLEVÉE ACCORDÉE</span>
+    Le dédouanement de ce dossier est terminé. Les marchandises peuvent être enlevées.
+</div>
+{% endif %}
+
+<div class="onglets">
+    <a href="/courtier/dossier/{{ case.case_id }}?tab=general" class="{% if tab == 'general' %}active{% endif %}">Informations générales</a>
+    <a href="/courtier/dossier/{{ case.case_id }}?tab=marchandises" class="{% if tab == 'marchandises' %}active{% endif %}">Marchandises</a>
+    <a href="/courtier/dossier/{{ case.case_id }}?tab=valeur" class="{% if tab == 'valeur' %}active{% endif %}">Valeur en douane</a>
+    <a href="/courtier/dossier/{{ case.case_id }}?tab=documents" class="{% if tab == 'documents' %}active{% endif %}">Documents</a>
+    <a href="/courtier/dossier/{{ case.case_id }}?tab=historique" class="{% if tab == 'historique' %}active{% endif %}">Historique</a>
+</div>
+
+{% if tab == 'general' %}
+    <div class="section-titre">Identification de la déclaration</div>
+    <table class="kv">
+        <tr><th>N° d'entrée</th><td>{{ case.case_id }}</td></tr>
+        <tr><th>MRN</th><td class="mono">{{ case.mrn }}</td></tr>
+        <tr><th>Type de déclaration</th><td>{{ case.declaration_type }}</td></tr>
+        <tr><th>Date de dépôt</th><td>{{ case.filing_date }}</td></tr>
+        <tr><th>Bureau de douane</th><td>{{ case.customs_office }}</td></tr>
+        <tr><th>Statut</th><td><span class="statut statut-{{ case.status }}">{{ status_labels[case.status] }}</span></td></tr>
+    </table>
+
+    <div class="section-titre">Parties à la déclaration</div>
+    <table class="kv">
+        <tr><th>Importateur</th><td>{{ case.importer_name }}<br><span class="text-secondaire mono">{{ case.importer_eori }}</span><br><span class="text-secondaire">{{ case.importer_address }}</span></td></tr>
+        <tr><th>Expéditeur / Exportateur</th><td>{{ case.exporter_name }}<br><span class="text-secondaire mono">{{ case.exporter_id }}</span><br><span class="text-secondaire">{{ case.exporter_address }}</span></td></tr>
+        <tr><th>Représentant en douane</th><td>{{ case.representative_name }}<br><span class="text-secondaire mono">Badge {{ case.representative_badge }}</span></td></tr>
+        <tr><th>Transporteur</th><td>{{ case.carrier_name }}<br><span class="text-secondaire mono">SCAC {{ case.carrier_scac }}</span></td></tr>
+    </table>
+
+{% elif tab == 'marchandises' %}
+    <div class="section-titre">Articles déclarés</div>
+    <table class="tableau">
+        <thead>
+            <tr>
+                <th>Code HS</th>
+                <th>Désignation</th>
+                <th>Origine</th>
+                <th>Poids net</th>
+                <th>Quantité</th>
+                <th>Valeur déclarée</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="mono">{{ case.hs_code }}</td>
+                <td>{{ case.goods_description }}</td>
+                <td>{{ case.origin_country }}</td>
+                <td>{{ case.weight_net_kg }} kg</td>
+                <td>{{ case.quantity }}</td>
+                <td>{{ "%.2f"|format(case.declared_value) }} {{ case.currency }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+{% elif tab == 'valeur' %}
+    <div class="section-titre">Détermination de la valeur en douane</div>
+
+    {% if case.status == 'hold' %}
+    <div class="alerte">
+        <span class="alerte-titre">Écart de valeur constaté</span>
+        Un écart de <strong>{{ "%.2f"|format(gap_abs) }} {{ case.currency }}</strong>
+        ({{ "%.1f"|format(gap_pct) }} %) a été relevé entre la valeur facturée et la valeur déclarée.
+        Corrigez la valeur ci-dessous ou justifiez l'écart.
+    </div>
+    {% endif %}
+
+    <form method="post" action="/courtier/dossier/{{ case.case_id }}/valeur" class="card">
+        <div class="form-group">
+            <label for="declared_value">Valeur déclarée ({{ case.currency }})</label>
+            <input type="number" step="0.01" id="declared_value" name="declared_value" value="{{ "%.2f"|format(case.declared_value) }}">
+        </div>
+        <div class="form-group">
+            <label for="invoice_value">Valeur facturée ({{ case.currency }}) — lecture seule</label>
+            <input type="number" step="0.01" id="invoice_value" name="invoice_value" value="{{ "%.2f"|format(case.invoice_value) }}" readonly>
+        </div>
+        <div class="form-group">
+            <label for="ecart">Écart constaté</label>
+            <input type="text" id="ecart" value="{{ "%.2f"|format(gap_abs) }} {{ case.currency }} ({{ "%.1f"|format(gap_pct) }} %)"
+                   readonly class="{% if gap_pct > 5 %}ecart-fort{% else %}ecart-ok{% endif %}">
+            {% if gap_pct > 5 %}<p class="hint text-rouge">Écart supérieur au seuil de 5 % — justification obligatoire.</p>{% endif %}
+        </div>
+        <div class="form-group">
+            <label for="incoterm">Incoterm</label>
+            <select id="incoterm" name="incoterm">
+                {% for inc in ['CIF', 'CIP', 'CFR', 'CPT', 'FOB', 'FCA', 'EXW', 'DAP', 'DDP'] %}
+                <option value="{{ inc }}" {% if case.incoterm == inc %}selected{% endif %}>{{ inc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="freight">Fret ({{ case.currency }})</label>
+            <input type="number" step="0.01" id="freight" name="freight" value="{{ "%.2f"|format(case.freight or 0) }}">
+        </div>
+        <div class="form-group">
+            <label for="insurance">Assurance ({{ case.currency }})</label>
+            <input type="number" step="0.01" id="insurance" name="insurance" value="{{ "%.2f"|format(case.insurance or 0) }}">
+        </div>
+        <div class="form-group">
+            <label for="justification">Justification de l'écart</label>
+            <textarea id="justification" name="justification" placeholder="Précisez la raison de l'écart de valeur (ex : la valeur facturée inclut le fret international, non compris dans la valeur transactionnelle…)">{{ case.value_justification or "" }}</textarea>
+        </div>
+        <div class="btn-row">
+            <button type="submit" class="btn" id="btn-soumettre">SOUMETTRE LA MODIFICATION</button>
+            <a href="/courtier/dossier/{{ case.case_id }}?tab=general" class="btn btn-secondaire">ANNULER</a>
+        </div>
+    </form>
+
+{% elif tab == 'documents' %}
+    <div class="section-titre">Documents joints au dossier</div>
+    <table class="tableau">
+        <thead>
+            <tr>
+                <th>Fichier</th>
+                <th>Type</th>
+                <th>Date de dépôt</th>
+                <th>Statut</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in documents %}
+            <tr {% if d.status == 'missing' %}class="hold-row"{% endif %}>
+                <td class="mono">{{ d.filename }}</td>
+                <td>{{ d.doc_type }}</td>
+                <td>{{ d.upload_date or "—" }}</td>
+                <td>
+                    {% if d.status == 'valid' %}<span class="doc-valid">✓ Validé</span>
+                    {% elif d.status == 'missing' %}<span class="doc-missing">✗ Manquant</span>{% if d.deadline %}<br><span class="hint">avant le {{ d.deadline }}</span>{% endif %}
+                    {% else %}<span class="doc-pending">⧗ En attente</span>{% endif %}
+                </td>
+                <td>
+                    {% if d.status == 'missing' %}
+                        <a href="#joindre">Joindre</a>
+                    {% else %}
+                        <a href="#">Télécharger</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="card" id="joindre">
+        <h3 class="mt-0">Joindre un document</h3>
+        <form method="post" action="/courtier/dossier/{{ case.case_id }}/documents/upload" enctype="multipart/form-data">
+            <input type="hidden" name="case_id" value="{{ case.case_id }}">
+            {% set missing = documents | selectattr("status", "equalto", "missing") | list %}
+            {% if missing %}
+            <div class="form-group">
+                <label for="doc_id">Répondre à une demande</label>
+                <select id="doc_id" name="doc_id">
+                    <option value="">Nouveau document</option>
+                    {% for m in missing %}
+                    <option value="{{ m.id }}">Demande : {{ m.doc_type }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="form-group">
+                <label for="doc_type">Type de document</label>
+                <select id="doc_type" name="doc_type">
+                    <option>Justificatif fiscal</option>
+                    <option>Facture corrigée</option>
+                    <option>Facture commerciale</option>
+                    <option>Certificat d'origine</option>
+                    <option>Attestation de valeur</option>
+                    <option>Packing list</option>
+                    <option>Autre</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="fichier">Fichier (PDF)</label>
+                <input type="file" id="fichier" name="fichier" accept="application/pdf">
+            </div>
+            <div class="btn-row">
+                <button type="submit" class="btn" id="btn-joindre">JOINDRE LE DOCUMENT</button>
+            </div>
+        </form>
+    </div>
+
+{% elif tab == 'historique' %}
+    <div class="section-titre">Historique du dossier</div>
+    {% if actions %}
+    <ul class="timeline">
+        {% for a in actions %}
+        <li class="{{ a.actor }}">
+            <div class="tl-date">{{ a.created_at }} — {{ a.actor | upper }}</div>
+            <div class="tl-desc">{{ a.description }}</div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-secondaire">Aucune action enregistrée pour ce dossier.</p>
+    {% endif %}
+{% endif %}
+
+<p style="margin-top:24px;"><a href="/courtier/declarations">← Retour à la liste des déclarations</a></p>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}

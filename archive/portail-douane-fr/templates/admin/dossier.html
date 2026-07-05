@@ -1,0 +1,153 @@
+{% extends "base_admin.html" %}
+{% set active_nav = "dashboard" %}
+{% block title %}Console dossier {{ case.case_id }} — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Console — Dossier {{ case.case_id }}</h1>
+<p class="text-secondaire">
+    MRN <span class="mono">{{ case.mrn }}</span> —
+    <span class="statut statut-{{ case.status }}">{{ status_labels[case.status] }}</span>
+</p>
+
+<div style="display:flex; gap:24px; align-items:flex-start;">
+    <!-- Colonne gauche : données du dossier (lecture seule) -->
+    <div style="width:420px; flex-shrink:0;">
+        <div class="section-titre">Données du dossier (lecture seule)</div>
+        <table class="kv">
+            <tr><th>Importateur</th><td>{{ case.importer_name }}</td></tr>
+            <tr><th>Expéditeur</th><td>{{ case.exporter_name }}</td></tr>
+            <tr><th>Représentant</th><td>{{ case.representative_name }}</td></tr>
+            <tr><th>Code HS</th><td class="mono">{{ case.hs_code }}</td></tr>
+            <tr><th>Marchandise</th><td>{{ case.goods_description }}</td></tr>
+            <tr><th>Valeur déclarée</th><td>{{ "%.2f"|format(case.declared_value or 0) }} {{ case.currency }}</td></tr>
+            <tr><th>Valeur facturée</th><td>{{ "%.2f"|format(case.invoice_value or 0) }} {{ case.currency }}</td></tr>
+            <tr><th>Écart</th><td class="{% if gap_pct > 5 %}ecart-fort{% else %}ecart-ok{% endif %}">{{ "%.2f"|format(gap_abs) }} {{ case.currency }} ({{ "%.1f"|format(gap_pct) }} %)</td></tr>
+            {% if case.hold_reason %}<tr><th>Motif du hold</th><td class="text-rouge">{{ case.hold_reason }}</td></tr>{% endif %}
+        </table>
+
+        <div class="section-titre">Documents</div>
+        <table class="tableau">
+            <thead><tr><th>Type</th><th>Statut</th></tr></thead>
+            <tbody>
+                {% for d in documents %}
+                <tr><td>{{ d.doc_type }}</td>
+                    <td>{% if d.status == 'valid' %}<span class="doc-valid">✓</span>
+                        {% elif d.status == 'missing' %}<span class="doc-missing">✗ Manquant</span>
+                        {% else %}<span class="doc-pending">⧗</span>{% endif %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Colonne droite : panneau d'actions agent -->
+    <div style="flex:1;">
+        <div class="section-titre">Panneau d'actions agent</div>
+
+        <!-- Action 1 : Déclencher un hold -->
+        <div class="action-bloc">
+            <h3>1 · Déclencher un hold</h3>
+            <form method="post" action="/admin/dossier/{{ case.case_id }}/hold">
+                <div class="form-group">
+                    <label for="motif">Motif du hold</label>
+                    <select id="motif" name="motif">
+                        <option>Écart de valeur</option>
+                        <option>Code HS contesté</option>
+                        <option>Document manquant</option>
+                        <option>Valeur suspecte</option>
+                        <option>Autre</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="detail">Motif détaillé (optionnel)</label>
+                    <textarea id="detail" name="detail" style="min-height:70px;" placeholder="Précision libre pour le message envoyé au courtier…"></textarea>
+                </div>
+                <button type="submit" class="btn btn-danger" id="btn-hold">DÉCLENCHER LE HOLD</button>
+            </form>
+        </div>
+
+        <!-- Action 2 : Envoyer un message -->
+        <div class="action-bloc">
+            <h3>2 · Envoyer un message</h3>
+            <form method="post" action="/admin/dossier/{{ case.case_id }}/message">
+                <div class="form-group">
+                    <label for="msg-subject">Objet</label>
+                    <input type="text" id="msg-subject" name="subject" value="Information — Dossier {{ case.case_id }}">
+                </div>
+                <div class="form-group">
+                    <label for="msg-body">Corps du message</label>
+                    <textarea id="msg-body" name="body" style="min-height:90px;">Madame FOURNIER,
+
+Nous vous informons que votre dossier {{ case.case_id }} fait l'objet d'un suivi par le service de la valeur.
+
+Cordialement,
+Service de la valeur — Bureau FR003300</textarea>
+                </div>
+                <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="link_case" name="link_case" value="1" checked style="width:auto;min-height:auto;">
+                    <label for="link_case" style="margin:0;text-transform:none;font-weight:400;">Lier au dossier {{ case.case_id }}</label>
+                </div>
+                <button type="submit" class="btn" id="btn-message">ENVOYER LE MESSAGE</button>
+            </form>
+        </div>
+
+        <!-- Action 3 : Demander un document -->
+        <div class="action-bloc">
+            <h3>3 · Demander un document complémentaire</h3>
+            <form method="post" action="/admin/dossier/{{ case.case_id }}/request-document">
+                <div class="form-group">
+                    <label for="doc_type">Type de document demandé</label>
+                    <select id="doc_type" name="doc_type">
+                        <option>Justificatif fiscal</option>
+                        <option>Facture corrigée</option>
+                        <option>Certificat d'origine</option>
+                        <option>Attestation de valeur</option>
+                        <option>Autre</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="raison">Raison de la demande</label>
+                    <textarea id="raison" name="raison" style="min-height:70px;">Suite à la correction de la valeur déclarée, un justificatif fiscal est requis pour valider la modification.</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="deadline">Date limite</label>
+                    <input type="date" id="deadline" name="deadline">
+                </div>
+                <button type="submit" class="btn" id="btn-request-doc">ENVOYER LA DEMANDE</button>
+            </form>
+        </div>
+
+        <!-- Action 4 : Accorder la mainlevée -->
+        <div class="action-bloc">
+            <h3>4 · Accorder la mainlevée</h3>
+            <form method="post" action="/admin/dossier/{{ case.case_id }}/release">
+                <div class="form-group">
+                    <label for="comment">Commentaire (optionnel)</label>
+                    <textarea id="comment" name="comment" style="min-height:70px;" placeholder="Commentaire joint au message de mainlevée…"></textarea>
+                </div>
+                <button type="submit" class="btn btn-succes" id="btn-release">ACCORDER LA MAINLEVÉE</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="section-titre">Messages échangés sur ce dossier</div>
+{% if messages %}
+<table class="tableau">
+    <thead><tr><th>Date</th><th>De</th><th>Objet</th><th>Lu</th></tr></thead>
+    <tbody>
+        {% for m in messages %}
+        <tr>
+            <td>{{ m.created_at }}</td>
+            <td>{{ m.sender_name }}</td>
+            <td>{{ m.subject }}</td>
+            <td>{% if m.is_read %}✓{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-secondaire">Aucun message pour ce dossier.</p>
+{% endif %}
+
+<p><a href="/admin/dashboard">← Retour au tableau de bord agent</a></p>
+{% endblock %}

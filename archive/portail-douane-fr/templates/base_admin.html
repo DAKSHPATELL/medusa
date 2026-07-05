@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}INTERFACE AGENT — DELTA-X{% endblock %}</title>
+    <link rel="icon" href="/static/img/favicon.ico">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="page">
+    <div class="bandeau-admin">⚠ INTERFACE AGENT — ENVIRONNEMENT DE CONTRÔLE</div>
+
+    <header class="header">
+        <div class="marianne">
+            <span class="rf">RÉPUBLIQUE</span>
+            <span class="rf">FRANÇAISE</span>
+            <span style="font-weight:400;font-size:11px;">Liberté · Égalité · Fraternité</span>
+        </div>
+        <div class="direction">
+            <strong>DIRECTION GÉNÉRALE DES DOUANES</strong><br>
+            ET DROITS INDIRECTS — Poste de contrôle
+        </div>
+    </header>
+
+    <div class="sous-bandeau">DELTA-X — Console agent douanier · {{ CUSTOMS_NAME | default("Bureau FR003300 — Le Havre Port") }}</div>
+
+    {% block nav %}
+    <nav class="nav">
+        <a href="/admin/dashboard" class="{% if active_nav == 'dashboard' %}active{% endif %}">Tableau de bord agent</a>
+        <a href="/admin/historique" class="{% if active_nav == 'historique' %}active{% endif %}">Historique des actions</a>
+        <a href="/courtier/dashboard">↗ Vue courtier</a>
+    </nav>
+    {% endblock %}
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-title">CONSOLE AGENT — USAGE INTERNE</div>
+        <div class="mentions">
+            Interface de contrôle réservée aux agents habilités.
+            Toutes les actions sont horodatées et journalisées.
+            Maquette de démonstration DELTA-X.
+        </div>
+    </footer>
+</div>
+{% block scripts %}<script src="/static/js/admin.js"></script>{% endblock %}
+</body>
+</html>

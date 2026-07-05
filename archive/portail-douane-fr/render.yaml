@@ -1,0 +1,13 @@
+# Blueprint de déploiement Render — https://render.com
+# Déploie le portail douanier mocké en un service web public (URL *.onrender.com).
+services:
+  - type: web
+    name: portail-douane-mock
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    # $PORT est fourni par Render ; la base est amorcée au démarrage (seed_if_empty).
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"

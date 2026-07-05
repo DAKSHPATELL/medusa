@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% set active_nav = "documents" %}
+{% block title %}Documents — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Bibliothèque de documents</h1>
+<p class="text-secondaire">Documents rattachés à l'ensemble de vos dossiers.</p>
+
+<form method="get" action="/courtier/documents" class="filtres">
+    <div class="form-group">
+        <label for="case_id">Filtrer par dossier</label>
+        <select id="case_id" name="case_id" style="width:300px;">
+            <option value="">Tous les dossiers</option>
+            {% for c in cases %}
+            <option value="{{ c.case_id }}" {% if selected_case == c.case_id %}selected{% endif %}>{{ c.case_id }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-secondaire" style="min-width:160px;">FILTRER</button>
+</form>
+
+<table class="tableau">
+    <thead>
+        <tr>
+            <th>Dossier</th>
+            <th>Fichier</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Statut</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in documents %}
+        <tr {% if d.status == 'missing' %}class="hold-row"{% endif %}>
+            <td><a href="/courtier/dossier/{{ d.case_id }}?tab=documents">{{ d.case_id }}</a></td>
+            <td class="mono">{{ d.filename }}</td>
+            <td>{{ d.doc_type }}</td>
+            <td>{{ d.upload_date or "—" }}</td>
+            <td>
+                {% if d.status == 'valid' %}<span class="doc-valid">✓ Validé</span>
+                {% elif d.status == 'missing' %}<span class="doc-missing">✗ Manquant</span>
+                {% else %}<span class="doc-pending">⧗ En attente</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        {% if not documents %}
+        <tr><td colspan="5" class="text-secondaire" style="text-align:center;padding:24px;">Aucun document.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<div class="card">
+    <h3 class="mt-0">Ajouter un document</h3>
+    <form method="post" action="/courtier/documents/upload" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="up_case_id">Rattacher au dossier</label>
+            <select id="up_case_id" name="case_id" style="width:340px;">
+                {% for c in cases %}
+                <option value="{{ c.case_id }}" {% if selected_case == c.case_id %}selected{% endif %}>{{ c.case_id }} — {{ c.exporter_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="up_doc_type">Type de document</label>
+            <select id="up_doc_type" name="doc_type" style="width:340px;">
+                <option>Facture commerciale</option>
+                <option>Facture corrigée</option>
+                <option>Packing list</option>
+                <option>Certificat d'origine</option>
+                <option>Justificatif fiscal</option>
+                <option>Attestation de valeur</option>
+                <option>Autre</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="up_fichier">Fichier (PDF)</label>
+            <input type="file" id="up_fichier" name="fichier" accept="application/pdf">
+        </div>
+        <div class="btn-row">
+            <button type="submit" class="btn" id="btn-ajouter-doc">AJOUTER LE DOCUMENT</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}

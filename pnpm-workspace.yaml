@@ -4,6 +4,7 @@ packages:
   - console
   - portal
   - office
+  - admin
 
 allowBuilds:
   better-sqlite3: true

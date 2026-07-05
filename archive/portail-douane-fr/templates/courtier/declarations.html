@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% set active_nav = "declarations" %}
+{% block title %}Déclarations — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Déclarations</h1>
+<p class="text-secondaire">Ensemble des déclarations de dédouanement gérées par votre cabinet.</p>
+
+<form method="get" action="/courtier/declarations" class="filtres">
+    <div class="form-group">
+        <label for="statut">Filtrer par statut</label>
+        <select id="statut" name="statut" style="width:300px;">
+            <option value="tous" {% if statut == 'tous' %}selected{% endif %}>Tous les statuts</option>
+            <option value="en_cours" {% if statut == 'en_cours' %}selected{% endif %}>En cours</option>
+            <option value="hold" {% if statut == 'hold' %}selected{% endif %}>Hold douanier</option>
+            <option value="mainlevee" {% if statut == 'mainlevee' %}selected{% endif %}>Mainlevée</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-secondaire" style="min-width:160px;">FILTRER</button>
+</form>
+
+<table class="tableau">
+    <thead>
+        <tr>
+            <th>N° Entrée</th>
+            <th>MRN</th>
+            <th>Type</th>
+            <th>Expéditeur</th>
+            <th>Statut</th>
+            <th>Date</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in cases %}
+        <tr {% if c.status in ['hold', 'pending_docs'] %}class="hold-row"{% endif %}>
+            <td>{{ c.case_id }}</td>
+            <td class="mono">{{ c.mrn }}</td>
+            <td>{{ c.declaration_type }}</td>
+            <td>{{ c.exporter_name }}</td>
+            <td><span class="statut statut-{{ c.status }}">{{ status_labels[c.status] }}</span></td>
+            <td>{{ c.filing_date }}</td>
+            <td><a href="/courtier/dossier/{{ c.case_id }}">Voir</a></td>
+        </tr>
+        {% endfor %}
+        {% if not cases %}
+        <tr><td colspan="7" class="text-secondaire" style="text-align:center;padding:24px;">Aucune déclaration pour ce filtre.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<p class="text-secondaire">Page 1 sur 1 — {{ cases | length }} déclaration(s) affichée(s).</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% set active_nav = "declarations" %}
+{% block title %}Modification enregistrée — DELTA-X{% endblock %}
+
+{% block content %}
+<div class="card card-centree" style="width:640px;">
+    <div class="alerte alerte-succes">
+        <span class="alerte-titre">✓ Modification enregistrée</span>
+        Votre correction de la valeur en douane a bien été transmise au bureau
+        {{ case.customs_office }}.
+    </div>
+
+    <h1>Récapitulatif de la modification</h1>
+    <table class="kv">
+        <tr><th>Dossier</th><td>{{ case.case_id }} — <span class="mono">{{ case.mrn }}</span></td></tr>
+        <tr><th>Valeur facturée</th><td>{{ "%.2f"|format(case.invoice_value) }} {{ case.currency }}</td></tr>
+        <tr><th>Nouvelle valeur déclarée</th><td class="text-vert">{{ "%.2f"|format(case.declared_value) }} {{ case.currency }}</td></tr>
+        <tr><th>Écart résiduel</th><td class="{% if gap_pct > 5 %}ecart-fort{% else %}ecart-ok{% endif %}">{{ "%.2f"|format(gap_abs) }} {{ case.currency }} ({{ "%.1f"|format(gap_pct) }} %)</td></tr>
+        <tr><th>Incoterm</th><td>{{ case.incoterm }}</td></tr>
+        <tr><th>Justification</th><td>{{ case.value_justification or "(aucune)" }}</td></tr>
+    </table>
+
+    <p class="text-secondaire">
+        Le service de la valeur examinera votre correction. Vous serez notifié
+        de toute demande complémentaire dans votre messagerie.
+    </p>
+
+    <div class="btn-row">
+        <a href="/courtier/dossier/{{ case.case_id }}?tab=valeur" class="btn btn-secondaire">RETOUR AU DOSSIER</a>
+        <a href="/courtier/dashboard" class="btn">TABLEAU DE BORD</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}

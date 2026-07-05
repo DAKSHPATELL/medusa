@@ -64,6 +64,7 @@ One TypeScript monorepo, one backend, thin purpose-built frontends. All secrets 
 | **`portal/`** | 5174 | Mock **EU "Single Window" customs portal** — the website the Portal agent drives with Computer Use. |
 | **`office/`** | 5175 | The **hero demo**: a pixel-art office where the Translator, Case-file, and Portal agents visibly work, driven by live server events (7 scenes). A game-like control room — *not* a dashboard. |
 | **`console/`** | 5173 | An **operator surface** that runs the same pipeline manually: read the supplier message, capture facts, detect, fix with the agent, approve, close & resume. |
+| **`admin/`** | 5176 | Back-office **order editor** for *Live Product Mode* — edit an order's values and the agent notices and reconciles the held case on its own. |
 | **`packages/core`** | — | The `CaseFile` / `CaseStore` contract every part depends on. |
 
 Every frontend talks to the server over the same WebSocket event stream
@@ -98,6 +99,14 @@ Then open:
   Computer Use (`gemini-2.5-computer-use-preview-*`) drives the portal in a headless browser and streams
   live screenshots into the office. It is **physically gated**: the loop refuses to click Submit; only a
   human `POST /confirm` submits.
+
+### Live Product Mode (persistence, made visible)
+
+Beyond the pitch demo, the server runs a **memory-session worker**: it resumes each registered case on
+an interval (and on instant triggers), diffs the linked order's version, and reconciles *only on a real
+change* — an idempotent resume→diff→act loop. Run the admin editor (`pnpm dev:admin`, :5176), change an
+order value, and watch the agent notice and re-open the case on its own. This is the "an agent that
+forgets is useless" thesis as a running product, not a script.
 
 ---
 
@@ -139,7 +148,9 @@ clearborder/
 ├── portal/            # mock EU "Single Window" customs portal (Computer Use target)
 ├── office/            # pixel-art office demo (the hero visual)
 ├── console/           # operator surface
-└── packages/core/     # CaseFile / CaseStore contract
+├── admin/             # back-office order editor (Live Product Mode trigger)
+├── packages/core/     # CaseFile / CaseStore contract
+└── archive/           # preserved-for-reference code, not part of the build
 ```
 
 Design notes for the original 24-hour build live in

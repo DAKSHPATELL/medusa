@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <title>Connexion — DELTA-X Fret Express</title>
+    <link rel="icon" href="/static/img/favicon.ico">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="page">
+    <header class="header">
+        <div class="marianne">
+            <span class="rf">RÉPUBLIQUE</span>
+            <span class="rf">FRANÇAISE</span>
+            <span style="font-weight:400;font-size:11px;">Liberté · Égalité · Fraternité</span>
+        </div>
+        <div class="direction">
+            <strong>DIRECTION GÉNÉRALE DES DOUANES</strong><br>
+            ET DROITS INDIRECTS
+        </div>
+    </header>
+    <div class="sous-bandeau">DELTA-X — Fret Express et Postal</div>
+
+    <main class="content">
+        <div class="card card-centree">
+            <h1>Connexion au portail</h1>
+            <p class="text-secondaire">Espace représentant en douane enregistré (RDE).</p>
+            <form method="post" action="/courtier/login">
+                <div class="form-group">
+                    <label for="eori">Numéro EORI</label>
+                    <input type="text" id="eori" name="eori" value="FR12345678900042" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="password">Mot de passe</label>
+                    <input type="password" id="password" name="password" value="delta-x-2026">
+                </div>
+                <div class="btn-row">
+                    <button type="submit" class="btn" id="btn-connexion">SE CONNECTER</button>
+                </div>
+                <p class="hint">Représentante connectée : Maria FOURNIER — Badge RD-2024-1847</p>
+            </form>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-title">DIRECTION GÉNÉRALE DES DOUANES ET DROITS INDIRECTS</div>
+        <div class="mentions">
+            © 2026 République française — Portail de dédouanement DELTA-X (maquette de démonstration).
+        </div>
+    </footer>
+</div>
+</body>
+</html>

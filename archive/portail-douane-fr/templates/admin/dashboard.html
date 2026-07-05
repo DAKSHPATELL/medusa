@@ -1,0 +1,36 @@
+{% extends "base_admin.html" %}
+{% set active_nav = "dashboard" %}
+{% block title %}Tableau de bord agent — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Tableau de bord agent</h1>
+<p class="text-secondaire">
+    Sélectionnez un dossier pour déclencher un hold, envoyer un message,
+    demander un document ou accorder la mainlevée.
+</p>
+
+<table class="tableau">
+    <thead>
+        <tr>
+            <th>N° Entrée</th>
+            <th>MRN</th>
+            <th>Importateur</th>
+            <th>Valeur décl. / fact.</th>
+            <th>Statut actuel</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in cases %}
+        <tr {% if c.status in ['hold', 'pending_docs'] %}class="hold-row"{% endif %}>
+            <td>{{ c.case_id }}</td>
+            <td class="mono">{{ c.mrn }}</td>
+            <td>{{ c.importer_name }}</td>
+            <td>{{ "%.0f"|format(c.declared_value or 0) }} / {{ "%.0f"|format(c.invoice_value or 0) }} {{ c.currency }}</td>
+            <td><span class="statut statut-{{ c.status }}">{{ status_labels[c.status] }}</span></td>
+            <td><a href="/admin/dossier/{{ c.case_id }}">Ouvrir la console →</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

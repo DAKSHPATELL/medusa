@@ -22,7 +22,18 @@ import {
   rejectSubmit,
   getPendingCorrection,
 } from "./computer-use.js";
-import type { CaseFile, DocKind } from "@clearborder/core";
+import { OrderStore } from "./orderStore.js";
+import {
+  initMemorySession,
+  startSessionLoop,
+  stopSessionLoop,
+  registerSession,
+  checkCase,
+  getSessionStatus,
+  markSessionIdle,
+  listSessions,
+} from "./memorySession.js";
+import type { CaseFile, DocKind, OrderSnapshot } from "@clearborder/core";
 
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
 const CASE_STORE = process.env.CASE_STORE ?? "local";
@@ -37,6 +48,21 @@ function createCaseStore() {
 }
 
 const caseStore = createCaseStore();
+const orderStore = new OrderStore("clearborder.db");
+
+// The order the demo case (SHIP-2026-CBR-001) is linked to.
+const DEMO_ORDER_REF = process.env.DEMO_ORDER_REF ?? "SHIP-2026-CBR-001";
+orderStore.seed(DEMO_ORDER_REF);
+
+// The memory-session worker: on an interval (and on instant triggers) it
+// resumes each registered case, diffs the linked order's version, and only
+// reconciles on a real change — making the persistent CaseFile visible.
+initMemorySession({
+  caseStore,
+  orderStore,
+  startCorrection,
+  intervalMs: parseInt(process.env.SESSION_INTERVAL_MS ?? "20000", 10),
+});
 
 // --- Fastify setup ---
 const app = Fastify({ logger: true });
@@ -264,6 +290,7 @@ app.post<{ Params: { caseId: string } }>(
       await caseStore.updateDiscrepancyStatus(caseId, resolved);
 
       broadcast("case_updated", { caseId });
+      markSessionIdle(caseId);
       return { status: "submitted", correction: result.correction };
     } catch (e: any) {
       return reply.code(400).send({ error: e.message });
@@ -280,6 +307,7 @@ app.post<{ Params: { caseId: string } }>(
     try {
       await rejectSubmit(caseId);
       broadcast("correction_rejected", { caseId });
+      markSessionIdle(caseId);
       return { status: "rejected" };
     } catch (e: any) {
       return reply.code(400).send({ error: e.message });
@@ -302,6 +330,84 @@ app.post<{ Body: { caseId: string } }>(
 );
 
 // ========================================
+// REST routes — Orders (Live Product Mode)
+// ========================================
+// The "order" is the source of truth a back-office user (the admin app) edits.
+// Editing it is what a live customer/broker integration would do; the memory
+// session worker notices the version bump and reconciles the held case.
+
+// Get an order by ref
+app.get<{ Params: { ref: string } }>("/api/orders/:ref", async (req, reply) => {
+  const order = orderStore.get(req.params.ref);
+  if (!order) return reply.code(404).send({ error: "Order not found" });
+  return order;
+});
+
+// List all orders
+app.get("/api/orders", async () => orderStore.list());
+
+// Update order fields — bumps version, emits order_changed, and fires an
+// instant (debounced) re-check of any linked case.
+app.put<{ Params: { ref: string }; Body: { fields: OrderSnapshot["fields"] } }>(
+  "/api/orders/:ref",
+  async (req) => {
+    const { ref } = req.params;
+    const updated = orderStore.upsert(ref, req.body.fields);
+    broadcast("order_changed", { ref: updated.ref, version: updated.version, fields: updated.fields });
+
+    const cases = await Promise.all(listSessions().map((s) => caseStore.get(s.caseId)));
+    for (const c of cases) {
+      if (c && c.shipment.ref === ref) {
+        setTimeout(() => checkCase(c.caseId), 500); // debounce
+      }
+    }
+    return updated;
+  }
+);
+
+// ========================================
+// REST routes — Session (Memory Session Worker)
+// ========================================
+
+// Register a case for monitoring (links caseId + environmentId to an order ref)
+app.post<{ Body: { caseId: string; environmentId: string; orderRef: string } }>(
+  "/api/session/register",
+  async (req) => {
+    const { caseId, environmentId, orderRef } = req.body;
+    return registerSession(caseId, environmentId, orderRef);
+  }
+);
+
+// Get session status (for the live HUD)
+app.get<{ Params: { caseId: string } }>("/api/session/:caseId/status", async (req, reply) => {
+  const status = getSessionStatus(req.params.caseId);
+  if (!status) return reply.code(404).send({ error: "No active session for this case" });
+  return status;
+});
+
+// Force an immediate check
+app.post<{ Params: { caseId: string } }>("/api/session/:caseId/check-now", async (req) => {
+  await checkCase(req.params.caseId);
+  return { status: "checked" };
+});
+
+// List all sessions
+app.get("/api/sessions", async () => listSessions());
+
+// ========================================
+// Reset (for demo)
+// ========================================
+
+app.post("/api/reset", async () => {
+  orderStore.reset();
+  orderStore.seed(DEMO_ORDER_REF);
+  stopSessionLoop();
+  startSessionLoop();
+  broadcast("reset", { message: "All state cleared" });
+  return { status: "reset" };
+});
+
+// ========================================
 // Start
 // ========================================
 
@@ -310,6 +416,7 @@ try {
   console.log(`🚀 ClearBorder server running on http://localhost:${PORT}`);
   console.log(`   CaseStore: ${CASE_STORE}`);
   console.log(`   Demo mode: ${process.env.DEMO_MODE ?? "false"}`);
+  startSessionLoop();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

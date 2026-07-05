@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% set active_nav = "dashboard" %}
+{% block title %}Tableau de bord — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Tableau de bord</h1>
+<p class="text-secondaire">Bienvenue, Maria FOURNIER — Représentante en douane enregistrée (RD-2024-1847).</p>
+
+<div class="compteurs">
+    <div class="compteur">
+        <div class="chiffre">{{ counts.active_total }}</div>
+        <div class="libelle">Dossiers actifs</div>
+    </div>
+    <div class="compteur orange">
+        <div class="chiffre">{{ counts.pending }}</div>
+        <div class="libelle">En attente</div>
+    </div>
+    <div class="compteur rouge">
+        <div class="chiffre">{{ counts.hold }}</div>
+        <div class="libelle">Hold douanier</div>
+    </div>
+    <div class="compteur vert">
+        <div class="chiffre">{{ counts.released }}</div>
+        <div class="libelle">Mainlevée</div>
+    </div>
+</div>
+
+<div class="recherche">
+    <div class="form-group">
+        <label for="recherche-num">Rechercher par numéro d'entrée</label>
+        <input type="text" id="recherche-num" name="q" placeholder="CLR-2026-…" style="width:340px;">
+    </div>
+    <a href="/courtier/declarations" class="btn btn-secondaire" style="min-width:160px;">RECHERCHER</a>
+</div>
+
+<h2>Dossiers nécessitant votre attention</h2>
+<table class="tableau">
+    <thead>
+        <tr>
+            <th>N° Entrée</th>
+            <th>MRN</th>
+            <th>Expéditeur</th>
+            <th>Motif</th>
+            <th>Statut</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if hold_cases %}
+            {% for c in hold_cases %}
+            <tr class="hold-row">
+                <td>{{ c.case_id }}</td>
+                <td class="mono">{{ c.mrn }}</td>
+                <td>{{ c.exporter_name }}</td>
+                <td>{{ c.hold_reason or "Contrôle en cours" }}</td>
+                <td><span class="statut statut-{{ c.status }}">{{ status_labels[c.status] }}</span></td>
+                <td><a href="/courtier/dossier/{{ c.case_id }}">Voir le dossier</a></td>
+            </tr>
+            {% endfor %}
+        {% else %}
+            <tr>
+                <td colspan="6" class="text-secondaire" style="text-align:center;padding:24px;">
+                    Aucun dossier en hold pour le moment. Les contrôles douaniers apparaîtront ici.
+                </td>
+            </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<h2>Dossiers récents</h2>
+<table class="tableau">
+    <thead>
+        <tr>
+            <th>N° Entrée</th>
+            <th>Type</th>
+            <th>Expéditeur</th>
+            <th>Dépôt</th>
+            <th>Statut</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in cases %}
+        <tr {% if c.status in ['hold', 'pending_docs'] %}class="hold-row"{% endif %}>
+            <td>{{ c.case_id }}</td>
+            <td>{{ c.declaration_type }}</td>
+            <td>{{ c.exporter_name }}</td>
+            <td>{{ c.filing_date }}</td>
+            <td><span class="statut statut-{{ c.status }}">{{ status_labels[c.status] }}</span></td>
+            <td><a href="/courtier/dossier/{{ c.case_id }}">Voir</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}
