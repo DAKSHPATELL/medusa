@@ -250,7 +250,10 @@ function emitTwilioCallComplete(
       type: "episodic",
       caseId,
       shipperId,
-      content: `${ctx.shipperName} confirmed invoice ${ctx.invoiceNumber} total = ${ctx.currency} ${result.confirmedValue.toFixed(2)} via Gemini Live PSTN call; declared ${ctx.declaredValue.toFixed(2)} was a decimal-entry error.`,
+      content:
+        result.transcripts.length > 0
+          ? `${ctx.shipperName} PSTN call re ${ctx.trackingNumber} (invoice ${ctx.invoiceNumber}, declared ${ctx.currency} ${ctx.declaredValue.toFixed(2)} vs invoice ${ctx.currency} ${ctx.invoiceValue.toFixed(2)}): ${result.summary}`
+          : `${ctx.shipperName} confirmed invoice ${ctx.invoiceNumber} total = ${ctx.currency} ${result.confirmedValue.toFixed(2)} via Gemini Live PSTN call.`,
       source: "Gemini Live call (Twilio PSTN)",
     },
     { caseId, day },

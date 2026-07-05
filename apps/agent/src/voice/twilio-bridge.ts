@@ -44,11 +44,14 @@ class LinearResampler {
 }
 
 const INBOUND_SYSTEM_INSTRUCTION = [
-  "You are ClearBorder, a customs brokerage AI agent.",
-  "The caller is a shipper or broker.",
-  "Help clarify customs declaration discrepancies.",
-  "Speak clearly and concisely.",
-  "If they speak Chinese, respond with translation support.",
+  "You are ClearBorder, a licensed customs brokerage AI agent on a live inbound phone call.",
+  "The caller is a shipper, importer, or freight broker with a parcel held at customs.",
+  "Your job: resolve valuation holds and declaration mismatches so the shipment can clear.",
+  "Start by asking for the waybill or tracking number, then the invoice number if needed.",
+  "Clarify whether the declared customs value matches the commercial invoice total; ask what the correct amount is.",
+  "If the shipper explains a data-entry error (e.g. decimal point), confirm the corrected value before ending.",
+  "Speak in a calm, professional broker tone — concise sentences suited to phone conversation.",
+  "Support English, Mandarin Chinese (中文), and Turkish (Türkçe): match the caller's language or offer brief translation.",
 ].join(" ");
 
 type GeminiLiveSession = {
@@ -147,7 +150,7 @@ export class TwilioGeminiBridge {
         {
           type: "agent.thought",
           caseId: this.ctx.caseId,
-          text: "Twilio Media Stream connected — Gemini Live bridge active.",
+          text: "Gemini Live connected — customs clarification call active.",
         },
         { day: this.ctx.day },
       );
@@ -359,13 +362,17 @@ export class TwilioGeminiBridge {
   }
 
   private buildOutboundSystemInstruction(ctx: VoiceSessionContext): string {
+    const gap = Math.abs(ctx.invoiceValue - ctx.declaredValue);
     return [
-      "You are ClearBorder, a customs brokerage AI agent on a live phone call.",
-      `You are calling ${ctx.shipperName} (${ctx.shipperLang}) about shipment ${ctx.trackingNumber}.`,
-      `Declared value: ${ctx.currency} ${ctx.declaredValue.toFixed(2)}. Invoice ${ctx.invoiceNumber}: ${ctx.currency} ${ctx.invoiceValue.toFixed(2)}.`,
-      "Ask the shipper to confirm the correct invoice total.",
-      "If they speak Chinese, provide translation support.",
-      "Keep responses concise for phone conversation.",
+      "You are ClearBorder, a licensed customs brokerage AI agent on an outbound phone call.",
+      `Case context — shipper: ${ctx.shipperName} (${ctx.shipperLang}, ${ctx.shipperLanguageCode}), phone ${ctx.phone}.`,
+      `Waybill/tracking: ${ctx.trackingNumber}. Invoice ${ctx.invoiceNumber}.`,
+      `Customs declared value: ${ctx.currency} ${ctx.declaredValue.toFixed(2)}. Commercial invoice total: ${ctx.currency} ${ctx.invoiceValue.toFixed(2)} (gap ${ctx.currency} ${gap.toFixed(2)}).`,
+      "The shipment is on a customs valuation hold until the declared value matches the invoice.",
+      "Ask the shipper to confirm the correct invoice total and whether the declared amount was a data-entry error.",
+      "Record their answer clearly; if they confirm the invoice total, acknowledge before ending.",
+      "Speak in a calm, professional broker tone — concise sentences for phone conversation.",
+      "Support English, Mandarin Chinese (中文), and Turkish (Türkçe): prefer the shipper's language with brief translation as needed.",
     ].join(" ");
   }
 
@@ -382,10 +389,14 @@ export class TwilioGeminiBridge {
 
     const durationSec = Math.max(1, Math.round((Date.now() - this.startedAt) / 1000));
     const confirmedValue = this.ctx?.invoiceValue ?? 0;
+    const transcriptSummary = this.transcripts
+      .map((t) => `${t.speaker}: ${t.sourceText}`)
+      .join(" · ")
+      .slice(0, 400);
     const summary =
       this.transcripts.length > 0
-        ? `Phone call completed (${this.transcripts.length} turns). Invoice discussion via Gemini Live PSTN.`
-        : "Phone call ended.";
+        ? `Customs call (${durationSec}s, ${this.transcripts.length} turns)${this.ctx ? ` re ${this.ctx.trackingNumber}` : ""}. ${transcriptSummary}`
+        : `Phone call ended (${durationSec}s).`;
 
     if (this.ctx && this.callId) {
       const payload: VoiceCompletePayload = {
