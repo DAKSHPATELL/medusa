@@ -561,18 +561,15 @@ function timeline(){
   text(bt?`Beat ${bt.id}/11 · ${bt.step}`:"Ready", VW-S(112), S(9), C.muted, S(8), {align:"left",shadow:false});
   dot(VW-S(14), S(12), S(3), app.wsUp?C.green:(app.offline?C.amber:C.red));
 }
-// bottom controls
+// bottom controls — no transport bar; the demo auto-plays. Only a single
+// "Play again" button appears at the very end to start a fresh demo.
 function controls(){
-  const h=S(18), y=VH-OY - S(0); const by=VH-S(22);
-  const badge = app.state.toUpperCase();
-  panel(S(6), by, VW-S(12), S(18));
-  text(badge, S(14), by+S(4), app.state==="waitingApproval"?C.amber:app.state==="complete"?C.green:C.muted, S(8), {shadow:false});
-  const bw=S(48),g=S(4); let bx=VW/2 - (bw*4+g*3)/2;
-  const mk=(l:string,fn:()=>void,fill=C.panelHi)=>{ reg(button(l,bx,by+S(2),bw,S(14),fill,C.text), fn); bx+=bw+g; };
-  mk(app.state==="playing"?"Pause":"Play", ()=> app.state==="playing"?ctrl.pause():ctrl.play(), C.accent);
-  mk("Next", ()=>ctrl.next());
-  mk("Reset", ()=>ctrl.reset());
-  mk("Replay", ()=>{ctrl.reset();ctrl.play();});
+  if(app.state !== "complete") return;
+  const bw=S(100), bh=S(24), bx=VW/2 - bw/2, by=VH - S(46);
+  if(Math.floor(clock*2)%2===0) text("Demo complete", VW/2, by - S(13), C.green, S(9), {align:"center"});
+  const glow = 0.5 + 0.5*Math.sin(clock*3);
+  sctx.globalAlpha = 0.25 + 0.4*glow; pill(bx-S(3), by-S(3), bw+S(6), bh+S(6), C.accent); sctx.globalAlpha = 1;
+  reg(button("Play again", bx, by, bw, bh, C.accent, C.text, true), ()=>{ ctrl.reset(); ctrl.play(); });
 }
 
 // ---- idle / start screen ---------------------------------------------

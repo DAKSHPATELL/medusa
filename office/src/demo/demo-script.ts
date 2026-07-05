@@ -41,7 +41,9 @@ const DEMO_SCRIPT: Beat[] = [
   // ── Scene 2: Joan emails seller ──
   {
     id: 4, scene: 2, step: "Customer alert", actor: "Joan", type: "emailSent",
-    autoAdvanceMs: 5000,
+    // Long enough for Joan to walk, type, and for the email to fully send
+    // ("Sent ✓" ~6.1s + envelope fly-off ~7.1s) before advancing to scene 3.
+    autoAdvanceMs: 8000,
     payload: {
       from: "Joan Martin",
       to: "SportStyle Retail",
