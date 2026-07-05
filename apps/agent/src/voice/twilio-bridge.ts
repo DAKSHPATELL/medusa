@@ -1,4 +1,4 @@
-import { mulaw as mulawCodec } from "alawmulaw";
+import * as alawmulaw from "alawmulaw";
 import { Modality } from "@google/genai";
 import type { WebSocket } from "ws";
 import type { EventHub } from "../hub";
@@ -227,7 +227,7 @@ export class TwilioGeminiBridge {
   private onInboundMedia(base64Mulaw: string): void {
     if (!this.geminiReady || !this.geminiSession) return;
     const mulawBytes = Buffer.from(base64Mulaw, "base64");
-    const pcm8k = mulawCodec.decode(mulawBytes);
+    const pcm8k = alawmulaw.mulaw.decode(mulawBytes);
     const pcm16k = this.upResampler.process(pcm8k);
     if (pcm16k.length === 0) return;
 
@@ -289,7 +289,7 @@ export class TwilioGeminiBridge {
     const pcm24k = new Int16Array(buf.buffer, buf.byteOffset, buf.length / 2);
     const pcm8k = this.downResampler.process(pcm24k);
     if (pcm8k.length === 0) return;
-    const encoded = mulawCodec.encode(pcm8k);
+    const encoded = alawmulaw.mulaw.encode(pcm8k);
     for (let i = 0; i < encoded.length; i++) this.outboundMulaw.push(encoded[i]!);
     this.flushOutboundAudio();
   }
