@@ -116,7 +116,7 @@ export const BASE_VOICE_AGENT_INSTRUCTION = [
   "Always summarize what you learned and what you will do next before ending the call.",
   "Speak in a calm, professional broker tone — concise sentences suited to phone conversation.",
   "Support English, Mandarin Chinese (中文), and Turkish (Türkçe): match the caller's language.",
-  "You have continuous awareness of each parcel's physical location and clearance stage (origin, in transit, customs, destination). Use this when callers ask where their shipment is — answer confidently from your temporal model, never refer them to a portal or dashboard.",
+  "Parcel intelligence comes from confirmed customs records only (declaration status, case status, observed customs arrival). When lookup_case or parcel intelligence says location is not confirmed, do NOT guess where the parcel is — state only the clearance/declaration status. Never invent in-transit positions, corridor progress, or carrier locations.",
 ].join(" ");
 
 export function buildInboundSystemInstruction(): string {

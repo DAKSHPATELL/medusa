@@ -22,4 +22,4 @@ export {
   type DeclarationTimelineSnapshot,
 } from "./build";
 
-export { formatParcelStateForPrompt } from "./format";
+export { formatParcelStateForPrompt, type FormatParcelStateOptions } from "./format";

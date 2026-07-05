@@ -186,19 +186,25 @@ export class ParcelTimeline {
     // Before first known anchor entry — still at origin.
     const originEnter = origin.enteredAt ? Date.parse(origin.enteredAt) : undefined;
     if (originEnter !== undefined && t < originEnter) {
-      return this.atAnchor(origin, 0);
+      return this.atAnchor(origin, 0, false);
     }
 
     // After destination entry — delivered.
     const destEnter = destination.enteredAt ? Date.parse(destination.enteredAt) : undefined;
     if (destEnter !== undefined && t >= destEnter) {
-      return this.atAnchor(destination, 1);
+      return this.atAnchor(destination, 1, destination.enteredAtObserved === true);
     }
 
     // Inside a fixed anchor (customs dwell is the common case).
     for (const anchor of anchors) {
       const inside = this.isInsideAnchor(t, anchor);
-      if (inside) return this.atAnchor(anchor, this.corridorProgressForAnchor(anchor));
+      if (inside) {
+        return this.atAnchor(
+          anchor,
+          this.corridorProgressForAnchor(anchor),
+          anchor.enteredAtObserved === true,
+        );
+      }
     }
 
     // In transit between consecutive anchors.
@@ -211,9 +217,9 @@ export class ParcelTimeline {
 
     // Fallback: customs if we have arrival, else origin.
     if (customs.enteredAt && (!customs.departedAt || t < Date.parse(customs.departedAt))) {
-      return this.atAnchor(customs, 0.55);
+      return this.atAnchor(customs, 0.55, customs.enteredAtObserved === true);
     }
-    return this.atAnchor(origin, 0);
+    return this.atAnchor(origin, 0, false);
   }
 
   private isInsideAnchor(t: number, anchor: SpaceTimeAnchor): boolean {
@@ -247,6 +253,7 @@ export class ParcelTimeline {
       },
       anchorId: "transit",
       corridorProgress: progress,
+      observed: false,
     };
   }
 
@@ -260,11 +267,13 @@ export class ParcelTimeline {
   private atAnchor(
     anchor: SpaceTimeAnchor,
     corridorProgress: number,
+    observed: boolean,
   ): TemporalParcelState["location"] {
     return {
       place: anchor.place,
       anchorId: anchor.id,
       corridorProgress,
+      observed,
     };
   }
 }

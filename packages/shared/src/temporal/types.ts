@@ -24,6 +24,8 @@ export interface SpaceTimeAnchor {
   place: GeoPlace;
   /** ISO — parcel entered this anchor (observed or inferred). */
   enteredAt?: string;
+  /** True when {@link enteredAt} comes from a portal/declaration read, not dead-reckoning. */
+  enteredAtObserved?: boolean;
   /** ISO — parcel departed (undefined while still inside or not yet arrived). */
   departedAt?: string;
 }
@@ -49,6 +51,8 @@ export interface TemporalParcelState {
     anchorId: string;
     /** 0..1 progress along the corridor between origin and destination. */
     corridorProgress: number;
+    /** True when position is tied to an observed anchor entry (e.g. declaration.arrivedAt). */
+    observed: boolean;
   };
   process: {
     caseStatus?: CaseStatus;

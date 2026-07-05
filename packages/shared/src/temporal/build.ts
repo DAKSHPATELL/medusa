@@ -47,6 +47,7 @@ function buildCorridor(input: BuildTimelineInput): ParcelCorridor {
   const shipment = rec.shipment;
   const consignee = rec.consignee;
 
+  const originDepart = estimateOriginDeparture(rec, declaration?.arrivedAt);
   const origin: SpaceTimeAnchor = {
     id: "origin",
     kind: "origin",
@@ -55,16 +56,19 @@ function buildCorridor(input: BuildTimelineInput): ParcelCorridor {
       city: shipment.originCity,
       countryCode: shipment.originCountryCode,
     },
-    enteredAt: estimateOriginDeparture(rec, declaration?.arrivedAt),
-    departedAt: estimateOriginDeparture(rec, declaration?.arrivedAt),
+    enteredAt: originDepart,
+    departedAt: originDepart,
+    enteredAtObserved: false,
   };
 
   const customsPlace = input.customsPlace ?? defaultCustomsFor(consignee);
+  const customsArrivedAt = declaration?.arrivedAt;
   const customs: SpaceTimeAnchor = {
     id: "customs",
     kind: "customs",
     place: customsPlace,
-    enteredAt: declaration?.arrivedAt ?? rec.createdAt,
+    enteredAt: customsArrivedAt ?? rec.createdAt,
+    enteredAtObserved: Boolean(customsArrivedAt),
     departedAt: clearanceDeparture(rec, declaration?.status),
   };
 
@@ -77,6 +81,7 @@ function buildCorridor(input: BuildTimelineInput): ParcelCorridor {
       countryCode: consignee.countryCode,
     },
     enteredAt: deliveryArrival(rec, declaration?.status),
+    enteredAtObserved: false,
   };
 
   return { anchors: [origin, customs, destination], origin, customs, destination };

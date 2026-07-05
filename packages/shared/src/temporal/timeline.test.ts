@@ -81,6 +81,7 @@ describe("ParcelTimeline", () => {
 
     assert.equal(state.location.anchorId, "customs");
     assert.equal(state.location.place.city, "Basel");
+    assert.equal(state.location.observed, true);
     assert.equal(state.process.caseStatus, "HELD_VALUATION");
     assert.ok(state.confidence > 0.5);
   });
@@ -98,6 +99,7 @@ describe("ParcelTimeline", () => {
     const midTransit = timeline.getStateAt("2026-06-28T06:14:00+02:00");
     assert.equal(midTransit.location.anchorId, "transit");
     assert.match(midTransit.location.place.label, /In transit/);
+    assert.equal(midTransit.location.observed, false);
     assert.ok(midTransit.location.corridorProgress > 0);
     assert.ok(midTransit.location.corridorProgress < 0.55);
   });
