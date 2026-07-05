@@ -143,6 +143,14 @@ export function DevMenu({
                 <ExternalLink size={12} />
                 Open TradeGate portal
               </a>
+              <a
+                href="/timeline"
+                data-testid="dev-observed-timeline-link"
+                className="flex w-full items-center gap-2 rounded-lg border border-ev-call/30 bg-ev-call/8 px-3 py-2 text-[12px] text-ev-call transition-colors hover:border-ev-call/45 hover:bg-ev-call/12"
+              >
+                <Route size={12} />
+                Live observed timeline
+              </a>
               <button
                 data-testid="dev-temporal-toggle"
                 onClick={() => setShowTemporal((value) => !value)}
