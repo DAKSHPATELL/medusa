@@ -9,7 +9,7 @@ import { loadCaseContext } from "../intake";
 import {
   VoiceAgentTools,
   VOICE_AGENT_TOOL_DECLARATIONS,
-  buildOutboundSystemInstruction,
+  BASE_VOICE_AGENT_INSTRUCTION,
   createVoiceAgentState,
   type VoiceAgentState,
 } from "../voice/agent-tools";
@@ -21,13 +21,103 @@ import { HERO_CASE_ID } from "../seed";
  * without needing Twilio or going through the orchestrator's call-scheduling
  * flow. Fully isolated from voice/session.ts, twilio-bridge.ts, and
  * LiveVoiceBridge.tsx — nothing here is shared state with those.
+ *
+ * Models the real two-conversation shape: the SENDER call already happened
+ * (read-only bilingual transcript, no audio) and the person live on this
+ * harness is the BROKER calling in afterwards for clarification in English.
  */
+
+interface SenderCallLine {
+  speaker: "agent" | "shipper";
+  sourceLang: string;
+  targetLang: string;
+  sourceText: string;
+  translatedText: string;
+}
+
+function buildBrokerSystemInstruction(ctx: {
+  caseId: string;
+  shipperName: string;
+  trackingNumber: string;
+  currency: string;
+  declaredValue: number;
+  invoiceValue: number;
+  invoiceNumber: string;
+}): string {
+  return [
+    BASE_VOICE_AGENT_INSTRUCTION,
+    `This is a call with the BROKER who oversees case ${ctx.caseId} — not the shipper. ` +
+      "The shipper call already happened separately; you are not placing that call now.",
+    `Case: shipper ${ctx.shipperName}, tracking ${ctx.trackingNumber}. Declared ${ctx.currency} ${ctx.declaredValue.toFixed(2)} ` +
+      `vs invoice ${ctx.invoiceNumber} ${ctx.currency} ${ctx.invoiceValue.toFixed(2)}.`,
+    "Open by greeting the broker and briefly summarizing the hold and what you've resolved so far, then invite their questions.",
+    "The broker may question past actions — yours or customs' (e.g. 'why did you change the currency'). " +
+      "Always call get_case_history and answer from the real logged record; never guess.",
+    "Always speak English with the broker, regardless of what language you used on the earlier shipper call.",
+  ].join(" ");
+}
+
+/** Read-only reconstruction of the sender call for the broker to review before going live — no DB writes, no audio. */
+function buildSenderCallTranscript(rec: {
+  shipment: {
+    trackingNumber: string;
+    declaredValue: number;
+    invoiceValue: number;
+    invoiceNumber: string;
+    currency: string;
+  };
+}, shipper: { name: string; language: string; language_code: string }): SenderCallLine[] {
+  const { trackingNumber, declaredValue, invoiceValue, invoiceNumber, currency } = rec.shipment;
+  const declared = declaredValue.toFixed(2);
+  const invoice = invoiceValue.toFixed(2);
+  return [
+    {
+      speaker: "agent",
+      sourceLang: "en",
+      targetLang: shipper.language_code,
+      sourceText: `Hello, calling about shipment ${trackingNumber}. Our records show declared value ${currency} ${declared} but invoice ${invoiceNumber} shows ${currency} ${invoice}. Can you confirm the correct total?`,
+      translatedText: `您好，关于运单 ${trackingNumber}。申报金额 ${declared} ${currency}，但发票显示 ${invoice} ${currency}。请确认正确金额。`,
+    },
+    {
+      speaker: "shipper",
+      sourceLang: shipper.language_code,
+      targetLang: "en",
+      sourceText: `是的，发票总额是 ${invoice} ${currency}。申报时小数点位置输错了，非常抱歉。`,
+      translatedText: `Yes, the invoice total is ${currency} ${invoice}. We entered the decimal point incorrectly — our mistake.`,
+    },
+    {
+      speaker: "agent",
+      sourceLang: "en",
+      targetLang: shipper.language_code,
+      sourceText: `Understood — that's the mismatch customs flagged. I'll correct the declared value to ${currency} ${invoice} and submit the amendment now.`,
+      translatedText: `明白了，问题就在这里。我现在把申报金额改为 ${invoice} ${currency}，并提交更正。`,
+    },
+  ];
+}
+
 export function registerVoiceTestRoutes(
   app: FastifyInstance,
   deps: { db: Database.Database; hub: EventHub; memory: MemoryEngine },
 ): void {
   const { db, hub, memory } = deps;
   const sessions = new Map<string, VoiceAgentState>();
+
+  app.get<{ Querystring: { caseId?: string } }>(
+    "/api/dev/voice-test/sender-call",
+    async (request, reply) => {
+      const caseId = request.query.caseId?.trim() || HERO_CASE_ID;
+      const ctx = loadCaseContext(db, caseId);
+      if (!ctx || !ctx.shipper) {
+        return reply.status(404).send({ error: `No case+shipper found for "${caseId}"` });
+      }
+      return {
+        caseId: ctx.case.id,
+        shipperName: ctx.shipper.name,
+        shipperLanguageCode: ctx.shipper.language_code,
+        lines: buildSenderCallTranscript(ctx.case, ctx.shipper),
+      };
+    },
+  );
 
   app.post<{ Body: { caseId?: string } }>("/api/dev/voice-test/start", async (request, reply) => {
     const caseId = request.body?.caseId?.trim() || HERO_CASE_ID;
@@ -48,7 +138,10 @@ export function registerVoiceTestRoutes(
       currency: ctx.case.shipment.currency,
     };
 
-    const systemInstruction = buildOutboundSystemInstruction(outboundCtx);
+    // Broker-facing call, not the shipper-outbound framing the Twilio path
+    // uses — the broker reviews the (already-happened) sender call as text,
+    // then asks the agent to account for itself live, in English.
+    const systemInstruction = buildBrokerSystemInstruction({ ...outboundCtx, caseId });
     const tools = VOICE_AGENT_TOOL_DECLARATIONS as unknown as Tool[];
     const token = await createLiveEphemeralToken(systemInstruction, tools);
     if (!token) {
