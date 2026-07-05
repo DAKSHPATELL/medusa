@@ -57,7 +57,11 @@ export function DemoExperience() {
 
       <ApprovalModal approval={derived.pendingApproval} />
 
-      <LiveVoiceBridge call={derived.call} voiceMode={voiceMode} />
+      <LiveVoiceBridge
+        call={derived.call}
+        voiceMode={voiceMode}
+        trackingNumber={selectedCase?.shipment.trackingNumber}
+      />
 
       {!state.connected && state.everConnected ? (
         <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center">
@@ -67,7 +71,12 @@ export function DemoExperience() {
         </div>
       ) : null}
 
-      <DevMenu currentDay={state.demo?.day ?? 1} connected={state.connected} />
+      <DevMenu
+        currentDay={state.demo?.day ?? 1}
+        connected={state.connected}
+        selectedCase={selectedCase}
+        caseEvents={derived.caseEvents}
+      />
     </div>
   );
 }

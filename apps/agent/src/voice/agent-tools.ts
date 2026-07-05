@@ -4,6 +4,7 @@ import type { EventHub } from "../hub";
 import type { MemoryEngine } from "../orchestrator/memory";
 import { getCase } from "../db";
 import { loadCaseContext } from "../intake";
+import { formatParcelStateForPrompt, resolveParcelState } from "../temporal/context";
 
 /** Per-call state accumulated via tool invocations during Gemini Live. */
 export interface VoiceAgentState {
@@ -115,6 +116,7 @@ export const BASE_VOICE_AGENT_INSTRUCTION = [
   "Always summarize what you learned and what you will do next before ending the call.",
   "Speak in a calm, professional broker tone — concise sentences suited to phone conversation.",
   "Support English, Mandarin Chinese (中文), and Turkish (Türkçe): match the caller's language.",
+  "You have continuous awareness of each parcel's physical location and clearance stage (origin, in transit, customs, destination). Use this when callers ask where their shipment is — answer confidently from your temporal model, never refer them to a portal or dashboard.",
 ].join(" ");
 
 export function buildInboundSystemInstruction(): string {
@@ -135,18 +137,25 @@ export function buildOutboundSystemInstruction(ctx: {
   invoiceValue: number;
   invoiceNumber: string;
   currency: string;
+  parcelContext?: string;
 }): string {
   const gap = Math.abs(ctx.invoiceValue - ctx.declaredValue);
-  return [
+  const lines = [
     BASE_VOICE_AGENT_INSTRUCTION,
     "This is an OUTBOUND call — you initiated contact with the shipper about a known case.",
     `Case context — shipper: ${ctx.shipperName} (${ctx.shipperLang}, ${ctx.shipperLanguageCode}), phone ${ctx.phone}.`,
     `Waybill/tracking: ${ctx.trackingNumber}. Invoice ${ctx.invoiceNumber}.`,
     `Customs declared value: ${ctx.currency} ${ctx.declaredValue.toFixed(2)}. Commercial invoice total: ${ctx.currency} ${ctx.invoiceValue.toFixed(2)} (gap ${ctx.currency} ${gap.toFixed(2)}).`,
     "The shipment is on a customs valuation hold until the declared value matches the invoice.",
+  ];
+  if (ctx.parcelContext) {
+    lines.push(`Current parcel intelligence: ${ctx.parcelContext}`);
+  }
+  lines.push(
     "Open by explaining the discrepancy and ask the shipper to confirm the correct invoice total.",
     "When they confirm, call record_clarification then schedule_portal_amendment.",
-  ].join(" ");
+  );
+  return lines.join(" ");
 }
 
 export class VoiceAgentTools {
@@ -205,6 +214,11 @@ export class VoiceAgentTools {
         ? `Declared ${rec.shipment.currency} ${rec.shipment.declaredValue.toFixed(2)} vs invoice ${rec.shipment.currency} ${rec.shipment.invoiceValue.toFixed(2)}`
         : "Customs hold");
 
+    const parcelState = resolveParcelState(this.db, rec.id);
+    const parcelContext = parcelState ? formatParcelStateForPrompt(parcelState) : undefined;
+
+    const baseMessage = `Found case ${rec.reference}: tracking ${rec.shipment.trackingNumber}, declared ${rec.shipment.currency} ${rec.shipment.declaredValue.toFixed(2)}, invoice ${rec.shipment.currency} ${rec.shipment.invoiceValue.toFixed(2)}, status ${rec.status}, shipper ${row.shipper_name}.`;
+
     return {
       found: true,
       caseId: rec.id,
@@ -218,7 +232,7 @@ export class VoiceAgentTools {
       shipperName: row.shipper_name,
       shipperPhone: row.shipper_phone,
       holdReason,
-      message: `Found case ${rec.reference}: tracking ${rec.shipment.trackingNumber}, declared ${rec.shipment.currency} ${rec.shipment.declaredValue.toFixed(2)}, invoice ${rec.shipment.currency} ${rec.shipment.invoiceValue.toFixed(2)}, status ${rec.status}, shipper ${row.shipper_name}.`,
+      message: parcelContext ? `${baseMessage} ${parcelContext}` : baseMessage,
     };
   }
 

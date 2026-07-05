@@ -8,6 +8,7 @@ import { createCaseFromIntake, loadCaseContext, setCasePhase, type IntakeResult 
 import type { CaseIntakeRequest } from "@clearborder/shared";
 import { MemoryEngine } from "./memory";
 import { runBrowserVoiceCall, runMockVoiceCall, runTwilioVoiceCall } from "../voice/index";
+import { resolveParcelContext } from "../temporal/context";
 
 interface PendingGate {
   caseId: string;
@@ -262,11 +263,23 @@ export class Orchestrator {
             : this.voiceMode === "browser"
               ? runBrowserVoiceCall
               : runMockVoiceCall;
+        const parcelContext = resolveParcelContext(this.db, caseId);
+        if (parcelContext) {
+          this.hub.emit(
+            {
+              type: "agent.thought",
+              caseId,
+              text: `Parcel cognition: ${parcelContext}`,
+            },
+            { day },
+          );
+        }
         const voiceResult = await voiceFn(this.hub, this.memory, {
           caseId,
           case: rec,
           shipper: shipperRow,
           day,
+          parcelContext,
         });
         if (voiceResult.confirmedValue > 0) {
           this.voiceConfirmedValues.set(caseId, voiceResult.confirmedValue);

@@ -10,6 +10,8 @@ export interface VoiceCallParams {
   case: CaseRecord;
   shipper: Shipper;
   day?: number;
+  /** Precomputed temporal parcel cognition for voice prompts. */
+  parcelContext?: string;
 }
 
 interface MockVoiceOpts {
@@ -132,6 +134,7 @@ function buildSessionContext(params: VoiceCallParams, callId: string): VoiceSess
     invoiceNumber: rec.shipment.invoiceNumber,
     currency: rec.shipment.currency,
     day,
+    parcelContext: params.parcelContext,
   };
 }
 

@@ -2,12 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ExternalLink, Play, RotateCcw, SlidersHorizontal, X } from "lucide-react";
+import { ExternalLink, Play, RotateCcw, Route, SlidersHorizontal, X } from "lucide-react";
+import type { CaseRecord } from "@clearborder/shared";
 import { agentPost } from "@/lib/demo/agent-api";
+import type { ReceivedEvent } from "@/lib/demo/useAgentStream";
+import { TemporalPanel } from "./TemporalPanel";
 
 /** Hidden demo controls — toggle with "D" or the corner dot. */
-export function DevMenu({ currentDay, connected }: { currentDay: number; connected: boolean }) {
+export function DevMenu({
+  currentDay,
+  connected,
+  selectedCase,
+  caseEvents,
+}: {
+  currentDay: number;
+  connected: boolean;
+  selectedCase: CaseRecord | null;
+  caseEvents: ReceivedEvent[];
+}) {
   const [open, setOpen] = useState(false);
+  const [showTemporal, setShowTemporal] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -129,7 +143,28 @@ export function DevMenu({ currentDay, connected }: { currentDay: number; connect
                 <ExternalLink size={12} />
                 Open TradeGate portal
               </a>
+              <button
+                data-testid="dev-temporal-toggle"
+                onClick={() => setShowTemporal((value) => !value)}
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-[12px] transition-colors ${
+                  showTemporal
+                    ? "border-accent/35 bg-accent/10 text-accent"
+                    : "border-line bg-white/[0.03] text-dim hover:border-accent/30 hover:text-mist"
+                }`}
+              >
+                <Route size={12} />
+                Parcel timeline (debug)
+              </button>
             </div>
+
+            {showTemporal ? (
+              <TemporalPanel
+                variant="embedded"
+                selectedCase={selectedCase}
+                caseEvents={caseEvents}
+                demoDay={currentDay}
+              />
+            ) : null}
 
             <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
               <span className="text-[10px] uppercase tracking-wider text-faint">Agent link</span>

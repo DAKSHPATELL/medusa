@@ -11,6 +11,8 @@ export interface VoiceSessionContext {
   invoiceNumber: string;
   currency: string;
   day?: number;
+  /** Agent cognition — where the parcel is and what clearance stage it is in. */
+  parcelContext?: string;
 }
 
 export interface VoiceTranscriptLine {

@@ -160,6 +160,22 @@ app.get<{ Params: { id: string } }>("/api/cases/:id", async (request, reply) => 
   return res;
 });
 
+app.get<{ Params: { id: string } }>("/api/cases/:id/declaration", async (request, reply) => {
+  const c = getCase(db, request.params.id);
+  if (!c) return reply.status(404).send({ error: "Case not found" });
+  const row = db
+    .prepare("SELECT status, arrived_at, updated_at FROM declarations WHERE ref = ?")
+    .get(c.declarationRef) as
+    | { status: string; arrived_at: string; updated_at: string }
+    | undefined;
+  if (!row) return reply.status(404).send({ error: "Declaration not found" });
+  return {
+    status: row.status,
+    arrivedAt: row.arrived_at,
+    updatedAt: row.updated_at,
+  };
+});
+
 app.post<{ Params: { caseId: string } }>("/api/agent/wake/:caseId", async (request, reply) => {
   const { caseId } = request.params;
   const c = getCase(db, caseId);
@@ -303,6 +319,13 @@ app.post<{
   });
   if (!ok) return reply.status(404).send({ error: "Voice session not found or already completed" });
   console.log(`[voice] browser Live complete: ${callId}`);
+  return { ok: true };
+});
+
+app.post<{ Params: { callId: string } }>("/api/voice/:callId/decline", async (request, reply) => {
+  const { callId } = request.params;
+  voiceSessions.cancel(callId);
+  console.log(`[voice] browser Live declined: ${callId}`);
   return { ok: true };
 });
 
