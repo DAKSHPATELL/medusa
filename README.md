@@ -203,6 +203,86 @@ If Twilio env vars are missing, the agent **compiles and runs** with mock voice 
 
 ---
 
+## Architecture
+
+```mermaid
+---
+title: ClearBorder — Architecture
+---
+flowchart TB
+    subgraph FRONTEND["Frontend · office/ · :5175"]
+        UI["Pixel-Art UI\n(Vite + Canvas)"]
+        GATE["Approve / Reject gate"]
+        LIVE_VIEW["Live browser view\n+ case memory"]
+    end
+
+    subgraph SERVER["Server / Agent · server/ · :3001"]
+        REST["REST API\n/api/cases → capture\n→ discrepancies\n→ correct / confirm / reject"]
+        WS_BUS["WebSocket bus /ws\nfact_captured\ndiscrepancy_detected\ncomputer_use_step\ncomputer_use_frame\nneeds_confirmation"]
+        ORCH["Orchestrator"]
+    end
+
+    subgraph PERSISTENCE["Persistence · Memory"]
+        SQLITE[("SQLite (WAL)\nLocalCaseStore\nkeyed by environment_id")]
+        CASEFILE["Persistent CaseFile\nwaybill · declared value\nhold reason · discrepancies\ncorrections · history"]
+    end
+
+    subgraph PRIMITIVES["The 3 Primitives"]
+        LT["Live Translate\nGemini Live + Twilio\n(simulated in DEMO_MODE)"]
+        CU["Computer Use\ncomputer-use-live.ts\nGemini 2.5 via\nInteractions API @google/genai"]
+        PW["Playwright / Chromium\nscreenshot → action loop"]
+    end
+
+    subgraph EXTERNAL["External"]
+        GEMINI_API["Gemini API\nComputer Use / Live"]
+        PORTAL["TÉLÉDEC portal\ndouanneportalmockup.com\n(mockup)"]
+    end
+
+    SHIPPER(["Shipper"])
+
+    %% Main flow
+    SHIPPER -->|"voice call\n(foreign language)"| LT
+    LT -->|"fact captured\n(translated)"| ORCH
+    ORCH -->|"writes"| CASEFILE
+    CASEFILE ---|"stored in"| SQLITE
+    ORCH -->|"discrepancy detected\n→ triggers"| CU
+    CU -->|"drives"| PW
+    PW -->|"navigate / click / type"| PORTAL
+    CU <-->|"API calls"| GEMINI_API
+
+    %% UI streaming
+    ORCH -->|"events"| WS_BUS
+    WS_BUS -->|"WebSocket"| UI
+    CU -->|"computer_use_frame"| WS_BUS
+    PW -->|"screenshots"| CU
+
+    %% Human gate
+    WS_BUS -->|"needs_confirmation"| GATE
+    GATE -->|"/confirm\nliveConfirmSubmit"| REST
+    REST -->|"submits"| PW
+    PW -->|"final Submit"| PORTAL
+
+    %% Resume
+    SQLITE -.->|"resume()\nsurvives restarts"| CASEFILE
+
+    %% Styling
+    classDef frontend fill:#E3E3FD,stroke:#000091,color:#161616
+    classDef server fill:#FEF3E2,stroke:#B34000,color:#161616
+    classDef persist fill:#C3FAD5,stroke:#18753C,color:#161616
+    classDef primitive fill:#FEE7E7,stroke:#E1000F,color:#161616
+    classDef external fill:#F5F5FE,stroke:#666666,color:#161616
+    classDef actor fill:#000091,stroke:#000091,color:#FFFFFF
+
+    class UI,GATE,LIVE_VIEW frontend
+    class REST,WS_BUS,ORCH server
+    class SQLITE,CASEFILE persist
+    class LT,CU,PW primitive
+    class GEMINI_API,PORTAL external
+    class SHIPPER actor
+```
+
+---
+
 ## Monorepo
 
 ```
