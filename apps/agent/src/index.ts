@@ -17,6 +17,7 @@ import { Orchestrator } from "./orchestrator/index";
 import { Replayer } from "./replayer";
 import { seedAll } from "./seed";
 import { voiceSessions } from "./voice/index";
+import { registerVoiceTestRoutes } from "./dev/voice-test";
 import {
   createTwilioBridge,
   buildVoiceTwiml,
@@ -305,6 +306,9 @@ app.post<{
   console.log(`[voice] browser Live complete: ${callId}`);
   return { ok: true };
 });
+
+// ── Dev-only: manual voice-test harness (see apps/web/app/dev/voice-test) ───
+registerVoiceTestRoutes(app, { db, hub, memory: orchestrator.getMemory() });
 
 // ── Twilio PSTN ↔ Gemini Live bridge ─────────────────────────────────────────
 

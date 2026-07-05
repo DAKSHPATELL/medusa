@@ -1,4 +1,4 @@
-import { Environment, GoogleGenAI, Modality } from "@google/genai";
+import { Environment, GoogleGenAI, Modality, type Tool } from "@google/genai";
 
 const COMPUTER_USE_MODEL =
   process.env.GEMINI_COMPUTER_USE_MODEL ?? "gemini-3-flash-preview";
@@ -91,7 +91,10 @@ export async function summarize(text: string, prompt: string): Promise<string | 
 }
 
 /** Short-lived token for browser Gemini Live sessions (never expose the main API key). */
-export async function createLiveEphemeralToken(systemInstruction: string): Promise<string | null> {
+export async function createLiveEphemeralToken(
+  systemInstruction: string,
+  tools?: Tool[],
+): Promise<string | null> {
   const ai = getGemini();
   if (!ai) return null;
   try {
@@ -107,6 +110,7 @@ export async function createLiveEphemeralToken(systemInstruction: string): Promi
             inputAudioTranscription: {},
             outputAudioTranscription: {},
             systemInstruction,
+            ...(tools ? { tools } : {}),
           },
         },
       },
