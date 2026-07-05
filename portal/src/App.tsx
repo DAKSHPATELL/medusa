@@ -9,7 +9,7 @@ const SEED_ENTRY = {
   destination: "Hamburg, Germany",
   description: "Photovoltaic panels — monocrystalline silicon, 400W modules",
   invoiceValue: "€47,250.00",
-  packingListValue: "€47,250.00",
+  packingListValue: "€45,000.00", // mismatch vs invoice — Computer Use harmonizes this
   hsCode: "8541.40.90",
   currency: "EUR",
   incoterm: "CIF Hamburg",

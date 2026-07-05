@@ -234,6 +234,9 @@ const app = {
 let clock=0;
 let timer:number|undefined;
 
+// ---- live Computer Use view (streamed browser screenshots) ----
+let cuImg:HTMLImageElement|null=null; let cuCap=""; let cuUrl="";
+
 function beat(){ return app.idx>=0 && app.idx<app.beats.length ? app.beats[app.idx] : null; }
 function pushFact(f:string){ if(!app.facts.includes(f)) app.facts.push(f); }
 function setAgent(id:string, state:AgentSt["state"], label:string, ms=0){
@@ -265,6 +268,10 @@ function onEvent(ev:string, data:any){
       if(Array.isArray(data.discrepancies)){ const m=data.discrepancies.find((d:any)=>/mismatch/i.test(d.kind))||data.discrepancies[0]; if(m) app.discId=m.id; }
       break;
     case "computer_use_step": setAgent("portal","typing", data?.step?.description || "Amending…", 2500); break;
+    case "computer_use_frame":
+      if(data?.image){ const im=new Image(); im.onload=()=>{ cuImg=im; }; im.src=data.image;
+        cuCap=data.caption||cuCap; cuUrl=data.url||cuUrl; }
+      break;
     case "needs_confirmation":
       setAgent("portal","waiting","Awaiting approval");
       // auto-advance beat 8 -> 9 on the REAL gate event
@@ -346,6 +353,7 @@ const ctrl = {
   next(){ if(app.state==="waitingApproval"||app.state==="complete") return;
     if(app.idx<0){ app.state="playing"; dispatch(0); } else { clearTimeout(timer); advance(app.idx); } },
   reset(){ clearTimeout(timer); app.idx=-1; app.state="idle"; app.beatT=0; app.caseId=null; app.discId=null; app.facts=[];
+    cuImg=null; cuCap=""; cuUrl="";
     for(const k in agents){ agents[k]={state:"idle",label:"Idle",until:0}; } },
   async approve(){ if(app.state!=="waitingApproval") return; try{ await api(`/api/cases/${app.caseId}/confirm`); }catch(_){ onEvent("correction_submitted",{}); } app.state="playing"; advance(app.idx); },
   async reject(){ if(app.state!=="waitingApproval") return; try{ await api(`/api/cases/${app.caseId}/reject`); }catch(_){} onEvent("correction_rejected",{}); },
@@ -475,6 +483,30 @@ function sceneOffice(bt:any,t:number){
     if(st.state==="waiting"){ const by=wy(4*16-16); panel(cx-S(8),by,S(16),S(16),C.panel,C.amber); text("?",cx,by+S(2),C.amber,S(11),{align:"center",shadow:false}); }
   }
   memoryPanel();
+  liveView();
+}
+// Live monitor: the actual Computer Use browser, streamed frame-by-frame.
+function liveView(){
+  if(!cuImg || !cuImg.naturalWidth) return;
+  const ar = cuImg.naturalWidth/cuImg.naturalHeight || 1.6;
+  let w = Math.min(S(340), VW*0.5), h = w/ar;
+  const maxH = VH*0.52; if(h>maxH){ h=maxH; w=h*ar; }
+  const x = Math.round((VW - w)/2) - S(24); // shift left of the memory panel
+  const y = OY + S(30);
+  // bezel + title bar
+  panel(x-S(3), y-S(13), w+S(6), h+S(28), C.panel, C.accent);
+  sctx.fillStyle=C.accent; sctx.fillRect(x-S(1), y-S(11), w+S(2), S(11));
+  const on=Math.floor(clock*2)%2===0; dot(x+S(6), y-S(5), S(2.5), on?C.red:"#8a2f2f");
+  text("LIVE · Computer Use", x+S(12), y-S(10), C.text, S(8), {shadow:false});
+  // the streamed browser screenshot (smoothed, unlike the pixel office)
+  sctx.imageSmoothingEnabled=true;
+  sctx.drawImage(cuImg, x, y, w, h);
+  sctx.imageSmoothingEnabled=false;
+  // caption overlay + url strip
+  if(cuCap){ sctx.fillStyle="rgba(5,7,15,0.72)"; sctx.fillRect(x, y+h-S(13), w, S(13));
+    text(cuCap, x+S(4), y+h-S(11), C.text, S(8), {shadow:false}); }
+  sctx.fillStyle=C.ink; sctx.fillRect(x, y+h, w, S(12));
+  text(cuUrl||"", x+S(4), y+h+S(2), C.faint, S(7), {shadow:false});
 }
 function memoryPanel(){
   const w=S(96), x=VW-w-S(10), y=OY+S(30), h=BUF_H*SCALE-S(60);

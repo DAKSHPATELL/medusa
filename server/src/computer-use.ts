@@ -14,6 +14,11 @@
 
 import { broadcast } from "./events.js";
 import type { CaseFile, Discrepancy } from "@clearborder/core";
+import { runLiveCorrection, liveConfirmSubmit, liveReject, hasLiveSession } from "./computer-use-live.js";
+
+// Live mode drives the real portal with Gemini Computer Use; requires an API key.
+// Default is the simulated demo path (no key, no browser needed).
+const LIVE = () => process.env.COMPUTER_USE_MODE === "live" && !!process.env.GEMINI_API_KEY;
 
 // --- Types ---
 
@@ -68,8 +73,21 @@ export async function startCorrection(
 
   pendingCorrections.set(caseFile.caseId, pending);
 
-  // Run the amendment loop (demo mode — simulated steps)
-  await amendEntry(pending);
+  if (LIVE()) {
+    // LIVE: Gemini Computer Use drives the real customs portal. It halts before
+    // Submit and emits needs_confirmation itself (see computer-use-live.ts).
+    try {
+      await runLiveCorrection(pending);
+      pending.status = "awaiting_confirmation";
+    } catch (e) {
+      console.error("[ComputerUse] live mode failed — falling back to simulation:", e);
+      pending.steps = [];
+      await amendEntry(pending);
+    }
+  } else {
+    // Demo mode — simulated steps with delays.
+    await amendEntry(pending);
+  }
 
   return pending;
 }
@@ -201,17 +219,23 @@ export async function confirmSubmit(
 
   pending.status = "confirmed";
 
-  // Emit the submit step
-  broadcast("computer_use_step", {
-    caseId,
-    step: {
-      action: "submit",
-      target: "#submitBtn",
-      description: "✓ Human approved — clicking Submit Declaration",
-    },
-    stepIndex: pending.steps.length + 1,
-    totalSteps: pending.steps.length + 1,
-  });
+  if (hasLiveSession(caseId)) {
+    // LIVE: perform the real Submit click on the portal — the ONLY code path
+    // that submits, reachable exclusively via this human-approval endpoint.
+    await liveConfirmSubmit(caseId);
+  } else {
+    // Demo: emit the simulated submit step
+    broadcast("computer_use_step", {
+      caseId,
+      step: {
+        action: "submit",
+        target: "#submitBtn",
+        description: "✓ Human approved — clicking Submit Declaration",
+      },
+      stepIndex: pending.steps.length + 1,
+      totalSteps: pending.steps.length + 1,
+    });
+  }
 
   // Emit correction submitted event
   broadcast("correction_submitted", {
@@ -251,6 +275,9 @@ export async function rejectSubmit(caseId: string): Promise<void> {
   }
 
   pending.status = "rejected";
+
+  // LIVE: tear down the browser without submitting anything.
+  if (hasLiveSession(caseId)) await liveReject(caseId);
 
   broadcast("correction_rejected", {
     caseId,
