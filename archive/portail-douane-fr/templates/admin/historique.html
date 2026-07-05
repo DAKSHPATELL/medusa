@@ -1,0 +1,34 @@
+{% extends "base_admin.html" %}
+{% set active_nav = "historique" %}
+{% block title %}Historique des actions — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Historique des actions agent</h1>
+<p class="text-secondaire">Journal horodaté de toutes les actions. Utile pour le suivi de la démonstration.</p>
+
+<table class="tableau">
+    <thead>
+        <tr>
+            <th>Horodatage</th>
+            <th>Dossier</th>
+            <th>Acteur</th>
+            <th>Type</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for a in actions %}
+        <tr>
+            <td class="mono">{{ a.created_at }}</td>
+            <td>{{ a.case_id or "—" }}</td>
+            <td>{{ a.actor }}</td>
+            <td class="mono">{{ a.action_type }}</td>
+            <td>{{ a.description }}</td>
+        </tr>
+        {% endfor %}
+        {% if not actions %}
+        <tr><td colspan="5" class="text-secondaire" style="text-align:center;padding:24px;">Aucune action enregistrée.</td></tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}

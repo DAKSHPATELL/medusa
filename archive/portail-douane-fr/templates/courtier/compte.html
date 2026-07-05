@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% set active_nav = "compte" %}
+{% block title %}Mon compte — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Mon compte</h1>
+<p class="text-secondaire">Informations du représentant en douane enregistré.</p>
+
+<div class="section-titre">Représentant</div>
+<table class="kv">
+    <tr><th>Nom</th><td>Maria FOURNIER</td></tr>
+    <tr><th>Badge RDE</th><td class="mono">RD-2024-1847</td></tr>
+    <tr><th>Cabinet</th><td>FOURNIER &amp; ASSOCIÉS — Commissionnaire en douane agréé</td></tr>
+    <tr><th>EORI</th><td class="mono">FR12345678900042</td></tr>
+    <tr><th>Bureau de rattachement</th><td>FR003300 — Le Havre Port</td></tr>
+    <tr><th>Adresse courriel</th><td>m.fournier@fournier-douane.fr</td></tr>
+    <tr><th>Habilitations</th><td>IM-A · EX-A · Représentation directe et indirecte</td></tr>
+</table>
+
+<div class="section-titre">Paramètres</div>
+<table class="kv">
+    <tr><th>Langue de l'interface</th><td>Français</td></tr>
+    <tr><th>Notifications par courriel</th><td>Activées</td></tr>
+    <tr><th>Dernière connexion</th><td>Aujourd'hui</td></tr>
+</table>
+
+<div class="btn-row">
+    <a href="/courtier/login" class="btn btn-secondaire">SE DÉCONNECTER</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}

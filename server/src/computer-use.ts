@@ -101,13 +101,14 @@ function determineCorrectionFromDiscrepancy(
 ): { field: string; from: string; to: string } {
   switch (discrepancy.kind) {
     case "value_mismatch_invoice_vs_packing_list": {
-      // Correct the portal's invoice value to match the packing list
+      // The supplier confirmed the invoice value is correct (it includes CIF
+      // freight); harmonize the packing-list value up to match the invoice.
       const invoiceVal = caseFile.documents.invoice?.value ?? "unknown";
       const packingVal = caseFile.documents.packing_list?.value ?? "unknown";
       return {
-        field: "invoiceValue",
-        from: invoiceVal,
-        to: packingVal, // harmonize to packing list value
+        field: "packingListValue",
+        from: packingVal,
+        to: invoiceVal, // harmonize the packing-list value to the CIF invoice value
       };
     }
     case "missing_hs_code": {

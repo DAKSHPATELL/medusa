@@ -1,0 +1,10 @@
+# Environnement Python
+.venv/
+__pycache__/
+*.pyc
+
+# Base SQLite générée par seed.py
+douane.db
+
+# Divers
+.DS_Store

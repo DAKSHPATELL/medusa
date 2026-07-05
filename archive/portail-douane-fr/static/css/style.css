@@ -1,0 +1,738 @@
+/* =========================================================================
+   DELTA-X Fret Express — Portail douanier mocké
+   Charte gouvernementale française (douane.gouv.fr)
+   Coins carrés, zéro ombre, zéro gradient, zéro animation.
+   ========================================================================= */
+
+:root {
+    --bleu-republique: #000091;
+    --bleu-hover: #1212FF;
+    --rouge-marianne: #E1000F;
+    --fond-page: #F5F5FE;
+    --fond-form: #FFFFFF;
+    --fond-bandeau: #E3E3FD;
+    --bordure: #CECECE;
+    --texte: #161616;
+    --texte-secondaire: #666666;
+    --vert: #18753C;
+    --orange: #B34000;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Marianne, Arial, sans-serif;
+    font-weight: 400;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--texte);
+    background: var(--fond-page);
+}
+
+a {
+    color: var(--bleu-republique);
+    text-decoration: underline;
+}
+
+a:hover {
+    color: var(--bleu-hover);
+}
+
+h1, h2, h3 {
+    font-weight: 700;
+    color: var(--bleu-republique);
+    margin: 0 0 16px 0;
+}
+
+h1 { font-size: 28px; }
+h2 { font-size: 22px; }
+h3 { font-size: 18px; }
+
+code, .mono {
+    font-family: "Courier New", monospace;
+}
+
+/* ---- Structure page : largeur fixe 1024px centrée -------------------- */
+
+.page {
+    width: 1024px;
+    margin: 0 auto;
+    background: var(--fond-page);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.content {
+    padding: 32px 24px;
+    flex: 1;
+}
+
+/* ---- Header République ------------------------------------------------ */
+
+.header {
+    background: var(--bleu-republique);
+    color: #FFFFFF;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.header .marianne {
+    border-right: 1px solid rgba(255, 255, 255, 0.5);
+    padding-right: 20px;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.3;
+    letter-spacing: 0.5px;
+}
+
+.header .marianne .rf {
+    display: block;
+    font-size: 16px;
+    letter-spacing: 1px;
+}
+
+.header .direction {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+.header .direction strong {
+    font-weight: 700;
+}
+
+.sous-bandeau {
+    background: #FFFFFF;
+    border-bottom: 1px solid var(--bordure);
+    padding: 12px 24px;
+    font-weight: 700;
+    color: var(--bleu-republique);
+    font-size: 18px;
+}
+
+/* ---- Bandeau admin orange -------------------------------------------- */
+
+.bandeau-admin {
+    background: var(--orange);
+    color: #FFFFFF;
+    padding: 10px 24px;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+/* ---- Navigation ------------------------------------------------------ */
+
+.nav {
+    background: #FFFFFF;
+    border-bottom: 1px solid var(--bordure);
+    display: flex;
+    padding: 0 24px;
+}
+
+.nav a {
+    display: block;
+    padding: 14px 20px;
+    color: var(--texte);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    border-bottom: 3px solid transparent;
+}
+
+.nav a:hover {
+    color: var(--bleu-republique);
+    background: var(--fond-page);
+}
+
+.nav a.active {
+    color: var(--bleu-republique);
+    border-bottom: 3px solid var(--bleu-republique);
+}
+
+.badge {
+    display: inline-block;
+    background: var(--rouge-marianne);
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 1px 7px;
+    margin-left: 4px;
+    min-width: 18px;
+    text-align: center;
+}
+
+/* ---- Footer ---------------------------------------------------------- */
+
+.footer {
+    background: #161616;
+    color: #FFFFFF;
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.footer a {
+    color: #FFFFFF;
+    text-decoration: underline;
+}
+
+.footer .footer-title {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+}
+
+.footer .mentions {
+    color: #CECECE;
+    margin-top: 12px;
+    border-top: 1px solid #444;
+    padding-top: 12px;
+}
+
+/* ---- Cards / formulaires --------------------------------------------- */
+
+.card {
+    background: var(--fond-form);
+    border: 1px solid var(--bordure);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.card-centree {
+    width: 480px;
+    margin: 48px auto;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--texte);
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="email"],
+input[type="file"],
+select,
+textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-family: Marianne, Arial, sans-serif;
+    font-size: 16px;
+    color: var(--texte);
+    background: #FFFFFF;
+    border: 1px solid var(--texte);
+    border-radius: 0;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid var(--bleu-republique);
+    outline-offset: 0;
+}
+
+textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+input[readonly],
+input:disabled {
+    background: #EEEEEE;
+    color: var(--texte-secondaire);
+}
+
+.hint {
+    font-size: 13px;
+    color: var(--texte-secondaire);
+    margin-top: 4px;
+}
+
+/* ---- Boutons --------------------------------------------------------- */
+
+.btn {
+    display: inline-block;
+    min-width: 200px;
+    min-height: 44px;
+    padding: 10px 24px;
+    font-family: Marianne, Arial, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    color: #FFFFFF;
+    background: var(--bleu-republique);
+    border: 1px solid var(--bleu-republique);
+    border-radius: 0;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: var(--bleu-hover);
+    border-color: var(--bleu-hover);
+    color: #FFFFFF;
+}
+
+.btn-secondaire {
+    color: var(--bleu-republique);
+    background: #FFFFFF;
+}
+
+.btn-secondaire:hover {
+    background: var(--fond-bandeau);
+    color: var(--bleu-republique);
+}
+
+.btn-danger {
+    background: var(--rouge-marianne);
+    border-color: var(--rouge-marianne);
+}
+
+.btn-danger:hover {
+    background: #B4000C;
+    border-color: #B4000C;
+}
+
+.btn-succes {
+    background: var(--vert);
+    border-color: var(--vert);
+}
+
+.btn-succes:hover {
+    background: #135E30;
+    border-color: #135E30;
+}
+
+.btn-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    align-items: center;
+}
+
+/* ---- Bandeaux d'alerte ----------------------------------------------- */
+
+.alerte {
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    border-left: 6px solid var(--rouge-marianne);
+    background: #FEE9E9;
+    color: var(--texte);
+    font-size: 15px;
+}
+
+.alerte.alerte-orange {
+    border-left-color: var(--orange);
+    background: #FEF0E5;
+}
+
+.alerte.alerte-info {
+    border-left-color: var(--bleu-republique);
+    background: var(--fond-bandeau);
+}
+
+.alerte.alerte-succes {
+    border-left-color: var(--vert);
+    background: #E6F3EB;
+}
+
+.alerte .alerte-titre {
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* ---- Compteurs tableau de bord --------------------------------------- */
+
+.compteurs {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.compteur {
+    flex: 1;
+    background: #FFFFFF;
+    border: 1px solid var(--bordure);
+    border-top: 4px solid var(--bleu-republique);
+    padding: 16px 20px;
+}
+
+.compteur .chiffre {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--bleu-republique);
+    line-height: 1;
+}
+
+.compteur .libelle {
+    font-size: 14px;
+    color: var(--texte-secondaire);
+    margin-top: 8px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.compteur.orange { border-top-color: var(--orange); }
+.compteur.orange .chiffre { color: var(--orange); }
+.compteur.rouge { border-top-color: var(--rouge-marianne); }
+.compteur.rouge .chiffre { color: var(--rouge-marianne); }
+.compteur.vert { border-top-color: var(--vert); }
+.compteur.vert .chiffre { color: var(--vert); }
+
+/* ---- Tableaux -------------------------------------------------------- */
+
+table.tableau {
+    width: 100%;
+    border-collapse: collapse;
+    background: #FFFFFF;
+    margin-bottom: 24px;
+}
+
+table.tableau th {
+    background: var(--bleu-republique);
+    color: #FFFFFF;
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 13px;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+table.tableau td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--bordure);
+    font-size: 15px;
+    vertical-align: middle;
+}
+
+table.tableau tr.hold-row td {
+    background: #FEE9E9;
+}
+
+table.tableau tr.hold-row td:first-child {
+    border-left: 4px solid var(--rouge-marianne);
+    font-weight: 700;
+}
+
+/* ---- Étiquettes de statut -------------------------------------------- */
+
+.statut {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    border: 1px solid;
+}
+
+.statut-active { color: var(--bleu-republique); border-color: var(--bleu-republique); background: var(--fond-bandeau); }
+.statut-hold { color: var(--rouge-marianne); border-color: var(--rouge-marianne); background: #FEE9E9; }
+.statut-pending_docs { color: var(--orange); border-color: var(--orange); background: #FEF0E5; }
+.statut-released { color: var(--vert); border-color: var(--vert); background: #E6F3EB; }
+
+/* ---- Onglets dossier ------------------------------------------------- */
+
+.onglets {
+    display: flex;
+    border-bottom: 2px solid var(--bleu-republique);
+    margin-bottom: 24px;
+}
+
+.onglets a {
+    padding: 12px 20px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--texte);
+    background: #FFFFFF;
+    border: 1px solid var(--bordure);
+    border-bottom: none;
+    margin-right: 4px;
+}
+
+.onglets a.active {
+    background: var(--bleu-republique);
+    color: #FFFFFF;
+    border-color: var(--bleu-republique);
+}
+
+.onglets a:hover:not(.active) {
+    background: var(--fond-bandeau);
+}
+
+/* ---- Tableau clé/valeur (infos générales) ---------------------------- */
+
+table.kv {
+    width: 100%;
+    border-collapse: collapse;
+    background: #FFFFFF;
+    margin-bottom: 24px;
+    border: 1px solid var(--bordure);
+}
+
+table.kv th {
+    text-align: left;
+    width: 260px;
+    padding: 12px 14px;
+    background: var(--fond-page);
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--texte-secondaire);
+    border-bottom: 1px solid var(--bordure);
+    vertical-align: top;
+}
+
+table.kv td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--bordure);
+    font-size: 15px;
+}
+
+.section-titre {
+    font-weight: 700;
+    color: var(--bleu-republique);
+    font-size: 16px;
+    text-transform: uppercase;
+    margin: 24px 0 12px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--bordure);
+}
+
+/* ---- Écart de valeur ------------------------------------------------- */
+
+.ecart-fort {
+    color: var(--rouge-marianne);
+    font-weight: 700;
+}
+
+.ecart-ok {
+    color: var(--vert);
+    font-weight: 700;
+}
+
+/* ---- Messagerie webmail ---------------------------------------------- */
+
+.messagerie {
+    display: flex;
+    border: 1px solid var(--bordure);
+    background: #FFFFFF;
+    min-height: 500px;
+}
+
+.msg-liste {
+    width: 340px;
+    border-right: 1px solid var(--bordure);
+    flex-shrink: 0;
+}
+
+.msg-item {
+    display: block;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--bordure);
+    text-decoration: none;
+    color: var(--texte);
+}
+
+.msg-item:hover {
+    background: var(--fond-page);
+    color: var(--texte);
+}
+
+.msg-item.selected {
+    background: var(--fond-bandeau);
+    border-left: 4px solid var(--bleu-republique);
+}
+
+.msg-item.non-lu {
+    font-weight: 700;
+}
+
+.msg-item.hold {
+    background: #FEE9E9;
+}
+
+.msg-item .msg-de {
+    font-size: 13px;
+    color: var(--texte-secondaire);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.msg-item.non-lu .msg-de {
+    color: var(--texte);
+}
+
+.msg-item .pastille {
+    width: 10px;
+    height: 10px;
+    background: var(--bleu-republique);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.msg-item .msg-objet {
+    font-size: 15px;
+    margin: 4px 0;
+}
+
+.msg-item .msg-date {
+    font-size: 12px;
+    color: var(--texte-secondaire);
+}
+
+.msg-detail {
+    flex: 1;
+    padding: 24px;
+}
+
+.msg-detail .msg-entete {
+    border-bottom: 1px solid var(--bordure);
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+}
+
+.msg-detail .msg-entete div {
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+.msg-detail .msg-entete .label-inline {
+    display: inline-block;
+    width: 90px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 13px;
+    color: var(--texte-secondaire);
+}
+
+.msg-corps {
+    font-size: 15px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    margin-bottom: 24px;
+}
+
+.msg-vide {
+    padding: 48px;
+    text-align: center;
+    color: var(--texte-secondaire);
+}
+
+/* ---- Timeline historique --------------------------------------------- */
+
+.timeline {
+    border-left: 3px solid var(--bleu-republique);
+    margin-left: 8px;
+    padding-left: 0;
+    list-style: none;
+}
+
+.timeline li {
+    position: relative;
+    padding: 0 0 24px 24px;
+}
+
+.timeline li::before {
+    content: "";
+    position: absolute;
+    left: -9px;
+    top: 4px;
+    width: 15px;
+    height: 15px;
+    background: var(--bleu-republique);
+    border: 3px solid var(--fond-page);
+}
+
+.timeline .tl-date {
+    font-size: 13px;
+    color: var(--texte-secondaire);
+    font-weight: 600;
+}
+
+.timeline .tl-desc {
+    font-size: 15px;
+    margin-top: 2px;
+}
+
+.timeline li.customs::before { background: var(--rouge-marianne); }
+.timeline li.broker::before { background: var(--vert); }
+
+/* ---- Panneau actions admin ------------------------------------------- */
+
+.action-bloc {
+    background: #FFFFFF;
+    border: 1px solid var(--bordure);
+    border-top: 4px solid var(--orange);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.action-bloc h3 {
+    color: var(--orange);
+    margin-top: 0;
+}
+
+/* ---- Divers ---------------------------------------------------------- */
+
+.filtres {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.filtres .form-group {
+    margin-bottom: 0;
+}
+
+.inline-form {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.recherche {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    margin-bottom: 24px;
+}
+
+.text-secondaire { color: var(--texte-secondaire); }
+.text-rouge { color: var(--rouge-marianne); font-weight: 700; }
+.text-vert { color: var(--vert); font-weight: 700; }
+.mt-0 { margin-top: 0; }
+.mb-0 { margin-bottom: 0; }
+
+.doc-valid { color: var(--vert); font-weight: 700; }
+.doc-missing { color: var(--rouge-marianne); font-weight: 700; }
+.doc-pending { color: var(--orange); font-weight: 700; }

@@ -1,42 +1,32 @@
 // server/src/computer-use-live.ts
 // =====================================================================
 // LIVE Computer Use — Gemini 2.5 Computer Use (Interactions API) + Playwright
-// Target: the external TÉLÉDEC customs-broker portal (live mockup site)
-//   https://www.douanneportalmockup.com/courtier/login
+// Target: the in-repo EU Customs "Single Window" portal (portal/, :5174)
 // =====================================================================
-// Flow the agent performs on screen:
-//   1. Log in (EORI + password are pre-filled) → click "Connexion".
-//   2. Open the flagged file (dossier) that is on "HOLD DOUANIER — Écart de valeur".
-//   3. Go to the "Valeur en douane" tab.
-//   4. Correct "Valeur déclarée" to match the invoiced value, add a justification.
-//   5. STOP before "SOUMETTRE LA MODIFICATION".
+// What the AI broker performs on screen:
+//   1. Open the customs declaration entry (single page, no login).
+//   2. The Packing List Value (€45,000) disagrees with the Invoice Value
+//      (€47,250) — the value the supplier confirmed includes CIF freight.
+//   3. Correct the "Packing List Value" field so it matches the invoice.
+//   4. STOP before "Submit Declaration".
 //
-// HARD RULE (unchanged): the loop halts before submitting. Two guarantees:
-//   1. The goal/system-instruction tells the model to stop before Soumettre.
-//   2. A programmatic gate refuses any click on the Soumettre button.
+// HARD RULE: the loop halts before submitting. Two guarantees:
+//   1. The goal/system-instruction tells the model to stop before Submit.
+//   2. A programmatic gate refuses any click on the Submit button (#submitBtn).
 // The real submit only happens in liveConfirmSubmit(), reachable exclusively
 // through explicit human approval (POST /confirm). That confirm step is
-// DETERMINISTIC — it re-asserts the corrected value + justification and submits,
-// so the task is guaranteed to finish even if the model's run was imperfect.
+// DETERMINISTIC — it re-asserts the corrected value and submits, so the task
+// is guaranteed to finish even if the model's run was imperfect.
 // =====================================================================
 
 import { broadcast } from "./events.js";
 
-// ---- config (env, with live-site defaults) ---------------------------
-const LOGIN_URL = process.env.PORTAL_URL || "https://www.douanneportalmockup.com/courtier/login";
-const ORIGIN = new URL(LOGIN_URL).origin;
-const CU_EORI = process.env.CU_EORI || "FR12345678900042";
-const CU_PASSWORD = process.env.CU_PASSWORD || "teledec-2026";
-const CU_DOSSIER = process.env.CU_DOSSIER || "CLR-2026-0042";
-const VALEUR_URL = process.env.CU_VALEUR_URL || `${ORIGIN}/courtier/dossier/${CU_DOSSIER}?tab=valeur`;
-const VALEUR_POST = `${ORIGIN}/courtier/dossier/${CU_DOSSIER}/valeur`;
-const TARGET_VALUE = process.env.CU_TARGET_VALUE || "14500.00"; // match invoice
-const RESET_VALUE = process.env.CU_RESET_VALUE || "12000.00";   // the "wrong" declared value
-const SUBMIT_SEL = process.env.CU_SUBMIT_SELECTOR || "#btn-soumettre";
-const LOGIN_BTN_SEL = "#btn-connexion";
-const JUSTIFICATION =
-  process.env.CU_JUSTIFICATION ||
-  "Valeur déclarée alignée sur la valeur facturée CIF (fret international inclus dans la facture). Écart résolu conformément à la valeur transactionnelle.";
+// ---- config (env, with in-repo portal defaults) ----------------------
+const PORTAL_URL = process.env.PORTAL_URL || "http://localhost:5174";
+const TARGET_FIELD_SEL = process.env.CU_FIELD_SELECTOR || "#packingListValue";
+const TARGET_VALUE = process.env.CU_TARGET_VALUE || "€47,250.00"; // match the invoice
+const RESET_VALUE = process.env.CU_RESET_VALUE || "€45,000.00";   // the mismatched packing-list value
+const SUBMIT_SEL = process.env.CU_SUBMIT_SELECTOR || "#submitBtn";
 const HEADLESS = process.env.CU_HEADLESS !== "false";
 const VIEWPORT = { width: 1440, height: 900 };
 const MAX_TURNS = Number(process.env.CU_MAX_TURNS || 30);
@@ -75,40 +65,6 @@ async function pointHitsSelector(page: any, px: number, py: number, selector: st
   } catch { return false; }
 }
 
-// ---- DETERMINISTIC reset: put the dossier back into the "hold" state --
-// Uses node fetch (undici) with manual cookie handling so each demo run starts
-// with a real value gap for the agent to fix. Best-effort — never throws.
-async function resetDossierState(): Promise<void> {
-  try {
-    const body = new URLSearchParams({ eori: CU_EORI, password: CU_PASSWORD }).toString();
-    const loginRes = await fetch(LOGIN_URL, {
-      method: "POST",
-      redirect: "manual",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    });
-    const setCookies: string[] = (loginRes.headers as any).getSetCookie?.() || [];
-    const cookie = setCookies.map((c) => c.split(";")[0]).join("; ");
-    if (!cookie) return;
-    const form = new URLSearchParams({
-      declared_value: RESET_VALUE,
-      invoice_value: TARGET_VALUE,
-      incoterm: "CIF",
-      freight: "2500.00",
-      insurance: "0.00",
-      justification: "reset",
-    }).toString();
-    await fetch(VALEUR_POST, {
-      method: "POST",
-      redirect: "manual",
-      headers: { "content-type": "application/x-www-form-urlencoded", cookie },
-      body: form,
-    });
-  } catch (e) {
-    console.warn("[ComputerUse] reset skipped:", (e as any)?.message ?? e);
-  }
-}
-
 // ---- action executor -------------------------------------------------
 async function executeAction(page: any, name: string, args: Record<string, any>): Promise<{ ok: boolean; halted: boolean; note: string }> {
   const W = VIEWPORT.width, H = VIEWPORT.height;
@@ -135,9 +91,9 @@ async function executeAction(page: any, name: string, args: Record<string, any>)
     case "double_click":
     case "right_click": {
       if (x == null || y == null) return { ok: false, halted: false, note: "click missing coords" };
-      // GATE: refuse any click on the Soumettre (submit) button — never the login button.
+      // GATE: refuse any click on the Submit button — a human does that.
       if (await pointHitsSelector(page, x, y, SUBMIT_SEL)) {
-        return { ok: false, halted: true, note: "refused click on Soumettre — awaiting human approval" };
+        return { ok: false, halted: true, note: "refused click on Submit — awaiting human approval" };
       }
       const opts: any = {};
       if (name === "double_click") opts.clickCount = 2;
@@ -154,7 +110,7 @@ async function executeAction(page: any, name: string, args: Record<string, any>)
     case "type_text_at":
     case "type": {
       if (x != null && y != null) {
-        if (await pointHitsSelector(page, x, y, SUBMIT_SEL)) return { ok: false, halted: true, note: "refused focus on Soumettre" };
+        if (await pointHitsSelector(page, x, y, SUBMIT_SEL)) return { ok: false, halted: true, note: "refused focus on Submit" };
         await page.mouse.click(x, y);
         await sleep(120);
         await page.keyboard.press("ControlOrMeta+A").catch(async () => {
@@ -206,8 +162,8 @@ async function executeAction(page: any, name: string, args: Record<string, any>)
 
 function captionFor(name: string, args: Record<string, any>): string {
   switch (name) {
-    case "navigate": case "open_url": case "open_web_browser": return "Opening TÉLÉDEC customs portal";
-    case "click_at": case "click": case "left_click": return "Navigating the customs file";
+    case "navigate": case "open_url": case "open_web_browser": return "Opening EU Customs Single Window portal";
+    case "click_at": case "click": case "left_click": return "Navigating the declaration entry";
     case "type_text_at": case "type": return `Typing: "${args?.text ?? args?.value ?? ""}"`;
     case "scroll_document": case "scroll": case "scroll_at": return "Scrolling the declaration";
     case "key_combination": case "press_key": return "Editing field";
@@ -223,9 +179,6 @@ export async function runLiveCorrection(pending: {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY required for live Computer Use");
 
-  // Make sure the dossier actually has a gap to fix (idempotent, best-effort).
-  await resetDossierState();
-
   const { GoogleGenAI } = await import("@google/genai");
   const { chromium } = await import("playwright");
   const ai = new GoogleGenAI({ apiKey });
@@ -233,33 +186,30 @@ export async function runLiveCorrection(pending: {
   const browser = await chromium.launch({ headless: HEADLESS });
   const context = await browser.newContext({ viewport: VIEWPORT });
   const page = await context.newPage();
-  await page.goto(LOGIN_URL, { waitUntil: "domcontentloaded" });
+  await page.goto(PORTAL_URL, { waitUntil: "domcontentloaded" });
   await sleep(600);
   sessions.set(pending.caseId, { browser, page });
-  await sendFrame(pending.caseId, page, "Opening TÉLÉDEC customs portal"); // initial live frame
+  await sendFrame(pending.caseId, page, "Opening EU Customs Single Window portal"); // initial live frame
 
-  // Coherent office/CaseFile display for the live-site numbers.
-  pending.field = "Valeur déclarée (EUR)";
-  pending.from = `${RESET_VALUE} EUR`;
-  pending.to = `${TARGET_VALUE} EUR`;
+  // Coherent office/CaseFile display for the portal numbers.
+  pending.field = "Packing List Value";
+  pending.from = RESET_VALUE;
+  pending.to = TARGET_VALUE;
 
   const goal =
-    `You are operating the TÉLÉDEC customs broker portal to clear a customs value hold.\n` +
-    `1. On the login page the EORI and password are already filled in — click the "Connexion" button.\n` +
-    `2. Open the customs file (dossier) ${CU_DOSSIER}, which is flagged "HOLD DOUANIER — Écart de valeur" ` +
-    `(from the dashboard "Dossiers nécessitant votre attention", or the "Déclarations" list).\n` +
-    `3. Open the "Valeur en douane" tab.\n` +
-    `4. In the "Valeur déclarée (EUR)" field, clear it and type ${TARGET_VALUE} so it matches the read-only ` +
-    `"Valeur facturée" value and the residual gap becomes 0.\n` +
-    `5. In the "Justification de l'écart" text box, write: the declared value has been aligned to the invoiced ` +
-    `CIF value (freight included in the invoice).\n` +
-    `6. IMPORTANT: STOP there. Do NOT click "SOUMETTRE LA MODIFICATION". A human reviews and submits.`;
+    `You are operating the EU Customs "Single Window" declaration portal to clear a customs value hold.\n` +
+    `The declaration is a single page (no login). The "Invoice Value" is ${TARGET_VALUE} — the value the ` +
+    `supplier confirmed on the call (it includes CIF freight). The "Packing List Value" still reads ` +
+    `${RESET_VALUE}, which is why the entry is held for a value mismatch.\n` +
+    `1. Find the "Packing List Value" input field.\n` +
+    `2. Clear it and type ${TARGET_VALUE} so it matches the Invoice Value and the discrepancy is resolved.\n` +
+    `3. IMPORTANT: STOP there. Do NOT click "Submit Declaration". A human reviews and submits.`;
 
   const tools = [{ type: "computer_use", environment: "browser" }];
   const systemInstruction =
     `You control a real web browser to amend one customs declaration field. ` +
-    `Only correct the declared value and write a justification, then finish. ` +
-    `Never click "SOUMETTRE LA MODIFICATION" / Submit — a human does that.`;
+    `Only correct the Packing List Value to match the Invoice Value, then finish. ` +
+    `Never click "Submit Declaration" / Submit — a human does that.`;
 
   let stepIdx = 0;
   let halted = false;
@@ -319,11 +269,11 @@ export async function runLiveCorrection(pending: {
   broadcast("needs_confirmation", {
     caseId: pending.caseId,
     discrepancyId: pending.discrepancyId,
-    correction: { field: pending.field, fieldLabel: "Valeur déclarée", from: pending.from, to: pending.to },
+    correction: { field: pending.field, fieldLabel: "Packing List Value", from: pending.from, to: pending.to },
     discrepancy: pending.discrepancy,
     live: true,
     message:
-      "Computer Use amended the declared value on the live TÉLÉDEC portal and stopped before Submit. Awaiting your approval.",
+      "Computer Use amended the Packing List Value on the EU customs portal and stopped before Submit. Awaiting your approval.",
   });
 }
 
@@ -338,41 +288,26 @@ export async function liveConfirmSubmit(caseId: string): Promise<void> {
       step: { action: "submit", description: "Human approved — submitting the correction" },
     });
 
-    // 1. Ensure we're logged in.
-    if (/\/login/.test(page.url())) {
-      await page.fill("#eori", CU_EORI).catch(() => {});
-      await page.fill("#password", CU_PASSWORD).catch(() => {});
-      await page.click(LOGIN_BTN_SEL).catch(() => {});
-      await page.waitForLoadState("domcontentloaded").catch(() => {});
-    }
-    // 2. Go to the value tab deterministically.
-    await page.goto(VALEUR_URL, { waitUntil: "domcontentloaded" });
-    await sleep(300);
-    // 3. Re-assert the corrected value + justification (guarantees completion
-    //    even if the agent's own edits were imperfect).
-    await page.fill("#declared_value", TARGET_VALUE).catch(() => {});
-    const j = await page.$eval("#justification", (el: any) => el.value).catch(() => "");
-    if (!String(j).trim()) await page.fill("#justification", JUSTIFICATION).catch(() => {});
+    // Re-assert the corrected value on the SAME page (the SPA holds state in
+    // memory; reloading would reset it), guaranteeing completion even if the
+    // agent's own edits were imperfect.
+    await page.fill(TARGET_FIELD_SEL, TARGET_VALUE).catch(() => {});
     await sendFrame(caseId, page, "Corrected value confirmed — submitting");
-    // 4. Submit for real — the ONLY submit path, reached only via human approval.
-    await Promise.all([
-      page.waitForLoadState("domcontentloaded").catch(() => {}),
-      page.click(SUBMIT_SEL),
-    ]);
-    await sleep(800);
-    await sendFrame(caseId, page, "Portal: modification submitted");
-    // 5. Verify the portal accepted it.
-    const url = page.url();
-    const okText = await page.locator("text=Modification enregistrée").count().catch(() => 0);
-    const success = /\/confirmation/.test(url) || okText > 0;
+    // Submit for real — the ONLY submit path, reached only via human approval.
+    await page.click(SUBMIT_SEL).catch(() => {});
+    await sleep(600);
+    await sendFrame(caseId, page, "Portal: declaration submitted");
+    // Verify the portal accepted it (the entry status flips to "Submitted").
+    const okText = await page.locator("text=Submitted").count().catch(() => 0);
+    const success = okText > 0;
     broadcast("correction_submitted", {
       caseId, live: true, success,
-      url,
+      url: page.url(),
       message: success
-        ? "Portal confirmed: modification enregistrée — customs value gap resolved."
+        ? "Portal confirmed: declaration submitted — customs value gap resolved."
         : "Submit clicked; confirmation not detected.",
     });
-    await sleep(1200); // let the confirmation page stay visible briefly
+    await sleep(1200); // let the confirmation stay visible briefly
   } finally {
     await s.browser.close().catch(() => {});
     sessions.delete(caseId);

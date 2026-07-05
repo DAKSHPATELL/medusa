@@ -409,10 +409,11 @@ function sceneJoan(bt:any,t:number){
   const happy = bt.payload.emotion==="happy";
   drawJoanRoom(0,(items)=>{ items.push({z: 6*16+8+8.5, draw:()=>drawStand("joan",9,6,DIR.down)}); });
   blit(); kicker(happy?"SCENE 6":"SCENE 1", bt.step);
-  if(happy){ // celebration: flag + ball near Joan
+  if(happy){ // celebration: a little sun — the panels are powering the site ☀️
     const jx=wx(9*16+8), jy=wy(6*16+8);
-    sctx.fillStyle=C.fr1;sctx.fillRect(jx+S(10),jy-S(30),S(5),S(9)); sctx.fillStyle=C.fr2;sctx.fillRect(jx+S(15),jy-S(30),S(5),S(9)); sctx.fillStyle=C.fr3;sctx.fillRect(jx+S(20),jy-S(30),S(5),S(9));
-    dot(jx-S(14),jy-S(16),S(3),C.text);
+    const sxu=jx+S(16), syu=jy-S(26);
+    sctx.fillStyle="#F5B301"; sctx.fillRect(sxu-S(3),syu-S(3),S(6),S(6));
+    for(const [dx,dy] of [[-7,0],[7,0],[0,-7],[0,7]]) sctx.fillRect(sxu+S(dx)-S(1),syu+S(dy)-S(1),S(2),S(2));
   }
   bubble(9*16+8, 6*16-2, [bt.payload.text], t, 30);
 }

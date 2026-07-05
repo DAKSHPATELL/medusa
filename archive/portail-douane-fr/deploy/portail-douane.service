@@ -1,0 +1,23 @@
+[Unit]
+Description=Portail douanier mocke DELTA-X (FastAPI/uvicorn)
+# Attend que le reseau soit pret avant de demarrer.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APP_DIR__
+# Base SQLite sur disque local => memoire persistante entre redemarrages.
+Environment=DOUANE_DB=__APP_DIR__/data/douane.db
+ExecStart=__APP_DIR__/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 3000
+# Redemarre le processus s'il plante, quoi qu'il arrive.
+Restart=always
+RestartSec=3
+# Journalisation via journalctl.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Demarre automatiquement au boot de la machine (avant meme toute session graphique).
+WantedBy=multi-user.target

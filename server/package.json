@@ -7,10 +7,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/case-store/local.test.ts src/case-store/restart-test.ts"
   },
   "dependencies": {
-    "@clearborder/core": "*",
+    "@clearborder/core": "workspace:*",
     "@fastify/cors": "^11.0.0",
     "@fastify/websocket": "^11.0.1",
     "@google/genai": "^2.10.0",

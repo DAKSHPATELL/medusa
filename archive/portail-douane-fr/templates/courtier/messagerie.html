@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% set active_nav = "messagerie" %}
+{% block title %}Messagerie — DELTA-X{% endblock %}
+
+{% block content %}
+<h1>Messagerie</h1>
+<p class="text-secondaire">Échanges avec les bureaux de douane. Messagerie sécurisée DELTA-X.</p>
+
+<div class="messagerie">
+    <div class="msg-liste">
+        {% if messages %}
+            {% for m in messages %}
+            <a href="/courtier/messagerie?msg={{ m.id }}"
+               class="msg-item {% if not m.is_read %}non-lu{% endif %} {% if selected and selected.id == m.id %}selected{% endif %} {% if 'HOLD' in (m.subject or '') %}hold{% endif %}">
+                <div class="msg-de">
+                    {% if not m.is_read %}<span class="pastille"></span>{% endif %}
+                    {{ m.sender_name if m.sender == 'customs' else 'Vous → ' + (m.recipient or 'Douane') }}
+                </div>
+                <div class="msg-objet">{{ m.subject }}</div>
+                <div class="msg-date">{{ m.created_at }}</div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="msg-vide">Aucun message.</div>
+        {% endif %}
+    </div>
+
+    <div class="msg-detail">
+        {% if selected %}
+            <div class="msg-entete">
+                <div><span class="label-inline">De</span> {{ selected.sender_name }}</div>
+                <div><span class="label-inline">À</span> {{ selected.recipient }}</div>
+                <div><span class="label-inline">Date</span> {{ selected.created_at }}</div>
+                <div><span class="label-inline">Objet</span> <strong>{{ selected.subject }}</strong></div>
+                {% if selected.case_id %}
+                <div><span class="label-inline">Dossier</span> <a href="/courtier/dossier/{{ selected.case_id }}">{{ selected.case_id }}</a></div>
+                {% endif %}
+            </div>
+
+            <div class="msg-corps">{{ selected.body }}</div>
+
+            {% if selected.sender == 'customs' %}
+            <div class="card" style="background:var(--fond-page);">
+                <h3 class="mt-0">Répondre</h3>
+                <form method="post" action="/courtier/messagerie/repondre">
+                    <input type="hidden" name="case_id" value="{{ selected.case_id or '' }}">
+                    <div class="form-group">
+                        <label for="reply-subject">Objet</label>
+                        <input type="text" id="reply-subject" name="subject" value="RE : {{ selected.subject }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="reply-body">Message</label>
+                        <textarea id="reply-body" name="body" placeholder="Rédigez votre réponse à l'attention du bureau des douanes…"></textarea>
+                    </div>
+                    <div class="btn-row">
+                        <button type="submit" class="btn" id="btn-repondre">ENVOYER LA RÉPONSE</button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="msg-vide">Sélectionnez un message pour l'afficher.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/courtier.js"></script>
+{% endblock %}

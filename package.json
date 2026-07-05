@@ -1,26 +1,30 @@
 {
   "name": "clearborder",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "ClearBorder — an AI agent that autonomously resolves packages stuck in customs.",
+  "description": "ClearBorder — an AI agent team that replaces the customs broker: it calls the supplier with live translation, remembers everything in a persistent CaseFile, drives the customs portal with Computer Use, and pauses for one human approval before submitting.",
   "scripts": {
-    "dev": "concurrently -n agent,web -c cyan,magenta --kill-others \"pnpm --filter @clearborder/agent dev\" \"pnpm --filter @clearborder/web dev\"",
-    "dev:v2": "concurrently -n backend,frontend -c blue,green \"pnpm dev:v2:backend\" \"pnpm dev:v2:frontend\"",
-    "dev:v2:backend": "cd backend && python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000",
-    "dev:v2:frontend": "pnpm --filter @clearborder/v2-frontend dev",
-    "seed": "pnpm --filter @clearborder/agent seed",
-    "seed:v2": "cd backend && python3 scripts/generate_mock_invoice.py",
-    "test:v2": "cd backend && python3 scripts/run_tests.py",
-    "typecheck": "pnpm -r typecheck",
+    "dev": "concurrently -n server,portal,office,console -c cyan,yellow,magenta,green --kill-others \"pnpm --filter @clearborder/server dev\" \"pnpm --filter @clearborder/portal dev\" \"pnpm --filter @clearborder/office dev\" \"pnpm --filter @clearborder/console dev\"",
+    "dev:server": "pnpm --filter @clearborder/server dev",
+    "dev:portal": "pnpm --filter @clearborder/portal dev",
+    "dev:office": "pnpm --filter @clearborder/office dev",
+    "dev:console": "pnpm --filter @clearborder/console dev",
+    "dev:admin": "pnpm --filter @clearborder/admin dev",
+    "demo:live": "concurrently -n server,portal,office -c cyan,yellow,magenta --kill-others \"DEMO_MODE=false COMPUTER_USE_MODE=live pnpm --filter @clearborder/server dev\" \"pnpm --filter @clearborder/portal dev\" \"pnpm --filter @clearborder/office dev\"",
     "build": "pnpm -r build",
-    "verify": "tsx scripts/verify.ts",
-    "test:twilio": "tsx scripts/test-twilio-config.ts"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @clearborder/server test"
   },
   "devDependencies": {
-    "@types/node": "^26.1.0",
-    "concurrently": "^10.0.3",
-    "playwright": "^1.61.1",
-    "tsx": "^4.23.0",
-    "typescript": "^5.9.3"
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "@google/genai",
+      "protobufjs"
+    ]
   }
 }

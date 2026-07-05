@@ -8,8 +8,11 @@ description: Build ClearBorder, a B2B customs-clearance agent that chains Live T
 # ClearBorder build rules
 
 ## What we are building
-An autonomous customs-clearance agent for SME exporters/brokers. Clearance takes days; the product's
-whole value is that state survives session close and resumes each morning exactly where it stopped.
+ClearBorder replaces the human customs broker with a team of AI agents. When a shipment is held at
+customs over a document discrepancy, the agents call the supplier (with live translation), remember
+every detail in a persistent CaseFile, drive the customs portal to amend the declaration, and pause
+for one human approval before submitting. Clearance takes days; the product's whole value is that state
+survives session close and resumes each morning exactly where it stopped.
 
 ## The chain (never break the order)
 Live Translate (call) -> persistent CaseFile detects a discrepancy -> Computer Use amends the mock
@@ -29,5 +32,7 @@ restart is the definition of done for Phase 2.
   The office view is a game-like control room, not a dashboard.
 
 ## Demo golden path (keep runnable)
-scripts/demo/golden-path runs Day 1 (call->discrepancy->correction->confirm->close) and Day 2
-(resume->retrieve validated correction->submit) with recorded audio and CASE_STORE=local.
+`pnpm dev` starts the server (:3001), portal (:5174), office (:5175), and console (:5173). The office
+at :5175 plays the 7-scene story driven by real server events; the console at :5173 runs the same
+pipeline manually (capture facts -> detect -> fix with agent -> approve -> close session -> resume).
+Both must stay runnable with no API key (DEMO_MODE=true) and CASE_STORE=local.

@@ -1,0 +1,16 @@
+[Unit]
+Description=Cloudflare Quick Tunnel - Portail douanier (URL ephemere)
+After=network-online.target portail-douane.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+# ATTENTION : le quick tunnel genere une NOUVELLE URL a chaque (re)demarrage.
+# Recuperez l'URL avec :  journalctl -u cloudflared-quick -n 30 | grep trycloudflare
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://localhost:3000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
