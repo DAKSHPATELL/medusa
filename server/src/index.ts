@@ -237,9 +237,12 @@ app.post<{ Params: { caseId: string } }>(
     const { caseId } = req.params;
 
     try {
+      // The ONLY path that submits. In demo mode confirmSubmit emits the submit
+      // step; in live mode it clicks Submit in the real browser. Either way it
+      // broadcasts `correction_submitted` itself, so we don't re-broadcast here.
       const result = await confirmSubmit(caseId);
 
-      // Record the correction in the CaseFile with by:"human"
+      // Record the human-approved correction in the CaseFile.
       const cf = await caseStore.append(caseId, {
         corrections: [
           {
@@ -252,34 +255,15 @@ app.post<{ Params: { caseId: string } }>(
         ],
       });
 
-      // Flip the discrepancy status to "submitted"
-      const updatedDiscrepancies = cf.discrepancies.map((d) => {
-        // Find the matching discrepancy by kind (since corrections map to discrepancy kinds)
-        if (d.status === "open") {
-          return { ...d, status: "submitted" as const, resolvedAt: new Date().toISOString() };
-        }
-        return d;
-      });
+      // Mark every open discrepancy resolved and persist it.
+      const resolved = cf.discrepancies.map((d) =>
+        d.status === "open"
+          ? { ...d, status: "submitted" as const, resolvedAt: new Date().toISOString() }
+          : d
+      );
+      await caseStore.updateDiscrepancyStatus(caseId, resolved);
 
-      // Persist the updated discrepancy statuses
-      await caseStore.append(caseId, {
-        discrepancies: [], // append merges, so we need to update via a direct mechanism
-      });
-
-      // Update the case with the resolved discrepancies
-      // We need to overwrite discrepancies — use a special update
-      const finalCase = await caseStore.get(caseId);
-      if (finalCase) {
-        finalCase.discrepancies = updatedDiscrepancies;
-        // Save the updated case by re-appending (the append function updates the whole blob)
-        await caseStore.append(caseId, {});
-        // Directly update the stored JSON with corrected discrepancies
-        await caseStore.updateDiscrepancyStatus(caseId, updatedDiscrepancies);
-      }
-
-      broadcast("correction_submitted", { caseId, correction: result.correction });
       broadcast("case_updated", { caseId });
-
       return { status: "submitted", correction: result.correction };
     } catch (e: any) {
       return reply.code(400).send({ error: e.message });

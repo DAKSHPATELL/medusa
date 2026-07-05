@@ -6,6 +6,10 @@ import { Beat } from "./types";
 // Scenes 1-3: emotional setup (fast)
 // Scene 4: THE PRODUCT (slow, agents work from real pipeline)
 // Scenes 5-6: resolution
+//
+// One coherent case throughout: a container of solar panels shipped from
+// Shenzhen to Hamburg is held at EU customs over a value mismatch. ClearBorder
+// is the AI agent team that does the customs broker's job and clears it.
 
 const DEMO_SCRIPT: Beat[] = [
   // ── Scene 0: Intro ──
@@ -13,53 +17,53 @@ const DEMO_SCRIPT: Beat[] = [
     id: 1, scene: 0, step: "Intro", actor: "—", type: "intro",
     payload: {
       title: "ClearBorder",
-      body: "AI-powered customs clearance that chains Live Translate, a persistent CaseFile, and Computer Use into one agent pipeline — so shipments clear faster and nothing gets lost between days.",
+      body: "Your customs broker, replaced by a team of AI agents. They call the supplier with live translation, remember every detail in a persistent case file, and drive the customs portal — pausing only for your one approval before anything is submitted.",
       buttonLabel: "Start Demo",
     },
   },
 
-  // ── Scene 1: Joan worried ──
+  // ── Scene 1: Importer worried ──
   {
-    id: 2, scene: 1, step: "Order stuck", actor: "Joan", type: "speech",
+    id: 2, scene: 1, step: "Shipment stuck", actor: "Importer", type: "speech",
     autoAdvanceMs: 5000,
     payload: {
       character: "joan",
-      text: "I ordered my France shirt for the World Cup… it still hasn't arrived!",
+      text: "Our solar panels are stuck at customs. The site connects to the grid next week — we can't miss it.",
       emotion: "worried",
     },
   },
   {
-    id: 3, scene: 1, step: "Order stuck", actor: "Joan", type: "speech",
+    id: 3, scene: 1, step: "Shipment stuck", actor: "Importer", type: "speech",
     autoAdvanceMs: 4000,
     payload: {
       character: "joan",
-      text: "The final is in days — I need it now.",
+      text: "And our broker is buried — no one has even opened the file.",
       emotion: "worried",
     },
   },
 
-  // ── Scene 2: Joan emails seller ──
+  // ── Scene 2: Importer escalates ──
   {
-    id: 4, scene: 2, step: "Customer alert", actor: "Joan", type: "emailSent",
-    // Long enough for Joan to walk, type, and for the email to fully send
-    // ("Sent ✓" ~6.1s + envelope fly-off ~7.1s) before advancing to scene 3.
+    id: 4, scene: 2, step: "Case handed off", actor: "Importer", type: "emailSent",
+    // Long enough to walk, type, and for the message to fully send
+    // ("Sent ✓" ~6.1s + fly-off ~7.1s) before advancing to scene 3.
     autoAdvanceMs: 8000,
     payload: {
-      from: "Joan Martin",
-      to: "SportStyle Retail",
-      subject: "Where is my order #FR-2024-WC?",
-      body: "Hi, I ordered a France World Cup shirt (order #FR-2024-WC) three weeks ago. The World Cup final is this Saturday and it still hasn't arrived. Can you please check what's happening? — Joan",
+      from: "SolarTech GmbH — Logistics",
+      to: "ClearBorder",
+      subject: "Container held at Hamburg — SHIP-2026-CBR-001",
+      body: "Our container of PV modules (SHIP-2026-CBR-001, Shenzhen → Hamburg) is held at customs for a value discrepancy. We need it cleared before the grid connection. Please take the case. — SolarTech Logistics",
     },
   },
 
-  // ── Scene 3: Retailer finds problem ──
+  // ── Scene 3: The customs hold ──
   {
     id: 5, scene: 3, step: "Customs hold", actor: "Retailer", type: "containerStatus",
     autoAdvanceMs: 6000,
     payload: {
       status: "held",
-      label: "🔴 Container CNIU-4821 — HELD at French Customs",
-      retailerSpeech: "Invoice / packing-list value mismatch + missing HS code. I'm launching ClearBorder.",
+      label: "🔴 Container MSKU-7742210 — HELD at EU Customs (Hamburg)",
+      retailerSpeech: "Invoice vs. packing-list value mismatch. ClearBorder is on it — no broker needed.",
     },
   },
 
@@ -69,7 +73,7 @@ const DEMO_SCRIPT: Beat[] = [
     autoAdvanceMs: 10000,
     payload: {
       action: "translate",
-      description: "Translator captures trade facts from supplier message",
+      description: "Translator calls the Shenzhen supplier and captures the trade facts",
     },
   },
   {
@@ -85,14 +89,14 @@ const DEMO_SCRIPT: Beat[] = [
     // No autoAdvance — waits for Computer Use to finish
     payload: {
       action: "computerUse",
-      description: "Portal agent corrects the declared value on the customs portal",
+      description: "Portal agent corrects the declared value on the EU customs portal",
     },
   },
   {
     id: 9, scene: 4, step: "Approval", actor: "Operator", type: "waitForApproval",
     requiresApproval: true,
     payload: {
-      prompt: "The Portal agent has prepared the correction. Approve to submit, or reject to cancel.",
+      prompt: "The Portal agent has prepared the correction and stopped before Submit. Approve to submit, or reject to cancel.",
     },
   },
 
@@ -102,16 +106,16 @@ const DEMO_SCRIPT: Beat[] = [
     autoAdvanceMs: 4000,
     payload: {
       status: "cleared",
-      label: "🟢 Container CNIU-4821 — CLEARED by French Customs",
+      label: "🟢 Container MSKU-7742210 — CLEARED by EU Customs",
     },
   },
 
   // ── Scene 6: Delivered ──
   {
-    id: 11, scene: 6, step: "Delivered", actor: "Joan", type: "speech",
+    id: 11, scene: 6, step: "Delivered", actor: "Importer", type: "speech",
     payload: {
       character: "joan",
-      text: "It arrived — just in time for the final! ⚽🇫🇷",
+      text: "Cleared and delivered — the panels are on site in time. ☀️",
       emotion: "happy",
     },
   },
