@@ -1,6 +1,6 @@
 /**
- * Core domain models shared by the dashboard, the agent service, and the
- * (future) memory / call / browser-automation workstreams.
+ * Core domain models shared by the agent service, voice cognition, and the
+ * internal demo observer — not exposed as a customer dashboard.
  */
 
 // ─── Case ────────────────────────────────────────────────────────────────────
@@ -48,7 +48,7 @@ export interface Shipment {
 
 export interface CaseRecord {
   id: string;
-  /** Human reference shown in the dashboard, e.g. "CB-2481". */
+  /** Human reference shown in voice lookup and demo UI, e.g. "CB-2481". */
   reference: string;
   /** Reference of the matching declaration in the customs portal, e.g. "FCBA-2026-04417". */
   declarationRef: string;

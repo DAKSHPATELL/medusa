@@ -6,12 +6,18 @@ import type { OrchestratorPhase } from "../protocol";
 import { ParcelTimeline } from "./timeline";
 import type { GeoPlace, ParcelCorridor, ProcessObservation, SpaceTimeAnchor } from "./types";
 
+/** Declaration fields needed to anchor customs facility timing in the corridor model. */
+export type DeclarationTimelineSnapshot = Pick<
+  Declaration,
+  "status" | "arrivedAt" | "updatedAt"
+>;
+
 export interface BuildTimelineInput {
   case: CaseRecord;
   /** Agent event stream — status changes refine the process timeline. */
   events?: AgentEvent[];
   /** Portal declaration — arrival time anchors the customs facility. */
-  declaration?: Pick<Declaration, "status" | "arrivedAt" | "updatedAt">;
+  declaration?: DeclarationTimelineSnapshot;
   /** Customs facility override (defaults to FCBA Basel for CH consignees). */
   customsPlace?: GeoPlace;
 }

@@ -1,11 +1,11 @@
 import type { CaseStatus, MemoryRecord } from "./models";
 
 /**
- * AgentEvent — the single stream that drives the mission-control dashboard.
+ * AgentEvent — the single stream that drives the internal demo observer
+ * (`apps/web` StoryFeed). Not a customer-facing product surface.
  *
- * Every workstream (call/translation, browser automation, memory engine,
- * orchestrator) communicates with the UI exclusively by emitting these events
- * through the agent service hub (`POST` internally / WS + SSE outward).
+ * Every workstream (voice, browser automation, memory, orchestrator) emits
+ * these events through the agent service hub (WS + SSE outward).
  */
 
 // ─── Common envelope ─────────────────────────────────────────────────────────

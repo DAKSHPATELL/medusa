@@ -2,8 +2,9 @@ import type { AgentEvent } from "./events";
 import type { CaseRecord, Shipper } from "./models";
 
 /**
- * Wire protocol between the agent service (apps/agent) and the dashboard
- * (apps/web). Delivered over WebSocket (`/ws`) and SSE (`/events`).
+ * Wire protocol between the agent service (apps/agent) and the internal demo
+ * observer (apps/web). Delivered over WebSocket (`/ws`) and SSE (`/events`).
+ * Customer touchpoints are voice-only; this UI is for operators and demos.
  */
 
 export type AgentStatus = "idle" | "active" | "sleeping" | "awaiting_approval";
@@ -33,7 +34,7 @@ export type ServerMessage =
   | { kind: "event"; event: AgentEvent }
   /** Snapshot refresh (status/case changes, day jumps, resets). */
   | { kind: "state"; state: SnapshotState }
-  /** Everything was reset (dashboard should clear its timeline). */
+  /** Everything was reset (demo observer should clear its story feed). */
   | { kind: "reset"; state: SnapshotState };
 
 // ─── HTTP API shapes (agent service) ─────────────────────────────────────────

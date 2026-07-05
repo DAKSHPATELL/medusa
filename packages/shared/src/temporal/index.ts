@@ -19,4 +19,7 @@ export {
   DEFAULT_CUSTOMS_PLACE,
   getParcelStateNow,
   type BuildTimelineInput,
+  type DeclarationTimelineSnapshot,
 } from "./build";
+
+export { formatParcelStateForPrompt } from "./format";

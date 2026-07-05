@@ -1,19 +1,18 @@
+/**
+ * Agent-side parcel cognition — resolves {@link TemporalParcelState} from SQLite.
+ *
+ * Domain logic lives in `@clearborder/shared/temporal` (`buildParcelTimeline`,
+ * `formatParcelStateForPrompt`). This module is the persistence adapter only.
+ */
 import type Database from "better-sqlite3";
-import type { AgentEvent, DeclarationStatus, TemporalParcelState } from "@clearborder/shared";
-import { getParcelStateNow } from "@clearborder/shared";
+import type { AgentEvent, DeclarationTimelineSnapshot, TemporalParcelState } from "@clearborder/shared";
+import { formatParcelStateForPrompt, getParcelStateNow } from "@clearborder/shared";
 import { getCase } from "../db";
-
-/** Declaration fields needed to anchor the customs facility in the corridor model. */
-interface DeclarationSnapshot {
-  status: DeclarationStatus;
-  arrivedAt: string;
-  updatedAt: string;
-}
 
 function getDeclarationSnapshot(
   db: Database.Database,
   declarationRef: string,
-): DeclarationSnapshot | undefined {
+): DeclarationTimelineSnapshot | undefined {
   const row = db
     .prepare("SELECT status, arrived_at, updated_at FROM declarations WHERE ref = ?")
     .get(declarationRef) as
@@ -21,7 +20,7 @@ function getDeclarationSnapshot(
     | undefined;
   if (!row) return undefined;
   return {
-    status: row.status as DeclarationStatus,
+    status: row.status as DeclarationTimelineSnapshot["status"],
     arrivedAt: row.arrived_at,
     updatedAt: row.updated_at,
   };
@@ -46,32 +45,10 @@ export function resolveParcelState(
   if (!rec) return undefined;
   const declaration = getDeclarationSnapshot(db, rec.declarationRef);
   const events = listEventsForCase(db, caseId);
-  return getParcelStateNow(
-    { case: rec, events, declaration },
-    now,
-  );
+  return getParcelStateNow({ case: rec, events, declaration }, now);
 }
 
-/** Compact prose for voice system prompts and tool responses. */
-export function formatParcelStateForPrompt(state: TemporalParcelState): string {
-  const confidencePct = Math.round(state.confidence * 100);
-  const parts = [
-    `Parcel is at ${state.location.place.label} (${Math.round(state.location.corridorProgress * 100)}% along origin→customs→destination corridor).`,
-    `Clearance stage: ${state.process.label}.`,
-  ];
-  if (state.process.declarationStatus) {
-    parts.push(`Declaration status: ${state.process.declarationStatus}.`);
-  }
-  parts.push(
-    `Temporal estimate confidence ${confidencePct}% (${state.inferenceMode}).`,
-  );
-  if (state.uncertainty) {
-    parts.push(
-      `Location uncertainty may extend until ${state.uncertainty.latest}.`,
-    );
-  }
-  return parts.join(" ");
-}
+export { formatParcelStateForPrompt };
 
 /** Resolve and format parcel cognition for a case — used before outbound calls. */
 export function resolveParcelContext(

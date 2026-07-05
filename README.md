@@ -82,7 +82,7 @@ pnpm dev      # web on :3000, agent service on :8787
 
 | Surface | URL | Notes |
 | --- | --- | --- |
-| **Live demo** (the story) | http://localhost:3000 | **Submit a real case** or press **`D`** → play **Day 1 / 2 / 3** |
+| **Agent demo** (internal observer) | http://localhost:3000 | Operator story feed — press **`D`** → play **Day 1 / 2 / 3** |
 | **TradeGate** (mock customs portal) | http://localhost:3000/portal/login | `a.mercier` / `demo2026` |
 | Agent service health | http://localhost:8787/health | WS `/ws` · SSE `/events` · shows active modes |
 
@@ -140,7 +140,7 @@ Your phone ──► Twilio Voice ──► POST /twilio/voice (TwiML)
                          Gemini Live (server-side API key)
                                     │
                                     ▼
-                         call.* AgentEvents → dashboard
+                         call.* AgentEvents → demo story feed
 ```
 
 **Dependencies:** `twilio`, `alawmulaw` (in `apps/agent`).
@@ -207,9 +207,9 @@ If Twilio env vars are missing, the agent **compiles and runs** with mock voice 
 
 ```
 apps/
-  web/      Next.js (App Router, TS strict, Tailwind v4)
-            ├─ /            story-driven live demo (AgentEvent stream as narrative)
-            └─ /portal      "TradeGate" — mock government customs portal (own visual identity)
+  web/      Next.js internal demo observer (StoryFeed) — not customer product
+            ├─ /            agent event stream as narrative + DevMenu debug tools
+            └─ /portal      "TradeGate" — mock government customs portal (agent automation target)
   agent/    Fastify service: AgentEvent hub (WebSocket /ws + SSE /events), SQLite
             persistence, seed script, **real orchestrator** (memory, voice, Playwright),
             and scripted demo replayer for Day 1/2/3

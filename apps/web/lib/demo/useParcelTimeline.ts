@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { AgentEvent, CaseRecord, DeclarationStatus } from "@clearborder/shared";
+import type { AgentEvent, CaseRecord, DeclarationTimelineSnapshot } from "@clearborder/shared";
 import {
   buildParcelTimeline,
   type InferenceMode,
@@ -9,12 +9,6 @@ import {
 } from "@clearborder/shared";
 import type { ReceivedEvent } from "./useAgentStream";
 import { agentHttpBase } from "./agent-api";
-
-export interface DeclarationSnapshot {
-  status: DeclarationStatus;
-  arrivedAt: string;
-  updatedAt: string;
-}
 
 function toAgentEvents(events: ReceivedEvent[]): AgentEvent[] {
   return events.map(({ receivedAt: _ignored, ...event }) => event);
@@ -24,7 +18,7 @@ export function useParcelTimeline(
   selectedCase: CaseRecord | null,
   caseEvents: ReceivedEvent[],
 ) {
-  const [declaration, setDeclaration] = useState<DeclarationSnapshot | null>(null);
+  const [declaration, setDeclaration] = useState<DeclarationTimelineSnapshot | null>(null);
   const [declarationLoading, setDeclarationLoading] = useState(false);
   const [declarationError, setDeclarationError] = useState<string | null>(null);
   const [followStory, setFollowStory] = useState(true);
@@ -47,7 +41,7 @@ export function useParcelTimeline(
         if (!response.ok) {
           throw new Error(response.status === 404 ? "No declaration linked" : "Fetch failed");
         }
-        return response.json() as Promise<DeclarationSnapshot>;
+        return response.json() as Promise<DeclarationTimelineSnapshot>;
       })
       .then((snapshot) => {
         if (!cancelled) setDeclaration(snapshot);

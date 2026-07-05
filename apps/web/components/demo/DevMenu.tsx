@@ -153,13 +153,12 @@ export function DevMenu({
                 }`}
               >
                 <Route size={12} />
-                Parcel timeline (debug)
+                Parcel cognition (debug)
               </button>
             </div>
 
             {showTemporal ? (
               <TemporalPanel
-                variant="embedded"
                 selectedCase={selectedCase}
                 caseEvents={caseEvents}
                 demoDay={currentDay}

@@ -188,7 +188,7 @@ export class EventHub {
         break;
     }
 
-    // Status-bearing events refresh the case list / demo chips on the dashboard.
+    // Status-bearing events refresh the case list / demo chips in the story feed.
     if (
       event.type === "case.status_changed" ||
       event.type === "agent.sleep" ||
