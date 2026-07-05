@@ -1,9 +1,6 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-
+// Vanilla TS + Canvas office (pixel-agents style). No React.
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5175,
-  },
+  base: "./",
+  server: { port: 5175 },
 });
