@@ -13,7 +13,6 @@ Built for the RAISE Summit × Google DeepMind hackathon, **Statement Four — Pe
 Agents**: three Gemini primitives chained so each one fires *because* the previous one ran.
 
 
-<img width="1849" height="1054" alt="image" src="https://github.com/user-attachments/assets/805330f2-b804-41aa-a2cf-0d74c8304f28" />
 
 ---
 
