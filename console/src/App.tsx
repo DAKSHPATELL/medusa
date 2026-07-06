@@ -158,6 +158,20 @@ export default function App() {
   const [isCorrecing, setIsCorrecing] = useState(false);
   const [sessionClosed, setSessionClosed] = useState(false);
   const [savedEnvironmentId, setSavedEnvironmentId] = useState<string | null>(null);
+  // Live view of the agent's browser (Computer Use) — frames + action feed.
+  const [agentView, setAgentView] = useState<{
+    active: boolean;
+    frame: string | null; // data URL of the agent's live browser screenshot
+    url: string;
+    steps: string[];
+    done: boolean;
+  }>({ active: false, frame: null, url: "", steps: [], done: false });
+  // Live Translate call — streaming bilingual transcript (simulated in demo mode).
+  const [call, setCall] = useState<{
+    active: boolean;
+    ended: boolean;
+    lines: { direction: "in" | "out"; text: string }[];
+  }>({ active: false, ended: false, lines: [] });
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -170,14 +184,16 @@ export default function App() {
 
   // --- WebSocket ---
   useEffect(() => {
+    let closed = false; // guard so an intentional close (unmount) doesn't reconnect
     function connect() {
+      if (closed) return;
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
 
       ws.onopen = () => setWsConnected(true);
       ws.onclose = () => {
         setWsConnected(false);
-        setTimeout(connect, 2000);
+        if (!closed) setTimeout(connect, 2000);
       };
 
       ws.onmessage = (evt) => {
@@ -208,15 +224,30 @@ export default function App() {
             case "correction_submitted":
               showToast("success", `Correction submitted: ${msg.data.correction.field}`);
               setConfirmCard(null);
+              setAgentView((v) => ({ ...v, done: true, steps: [...v.steps.slice(-7), "✓ Submitted — customs value corrected"] }));
               refreshCase();
               break;
             case "correction_rejected":
               showToast("info", "Correction rejected — nothing was submitted");
               setConfirmCard(null);
+              setAgentView((v) => ({ ...v, done: true, steps: [...v.steps.slice(-7), "✗ Rejected — nothing submitted"] }));
               refreshCase();
               break;
             case "computer_use_step":
               showToast("info", `🖥️ ${msg.data.step.description}`);
+              setAgentView((v) => ({ ...v, active: true, steps: [...v.steps.slice(-7), msg.data.step.description] }));
+              break;
+            case "computer_use_frame":
+              setAgentView((v) => ({ ...v, active: true, frame: msg.data.image, url: msg.data.url || v.url }));
+              break;
+            case "live_translate_active":
+              setCall({ active: true, ended: false, lines: [] });
+              break;
+            case "transcript":
+              setCall((c) => ({ ...c, active: true, lines: [...c.lines, { direction: msg.data.direction, text: msg.data.text }] }));
+              break;
+            case "live_translate_closed":
+              setCall((c) => ({ ...c, active: false, ended: true }));
               break;
             case "day_closed":
               showToast("info", "🌙 Day closed — all agents sleeping");
@@ -233,7 +264,11 @@ export default function App() {
 
     connect();
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      closed = true;
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // don't trigger a reconnect on intentional close
+        wsRef.current.close();
+      }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -269,6 +304,19 @@ export default function App() {
     if (!cf) cf = await createCase();
     setMessageLoaded(true);
     showToast("info", "📧 Sender message loaded — extract key facts below");
+  }
+
+  // Call the supplier — the server streams a live bilingual translation over WS.
+  async function startCall() {
+    let cf = caseFile;
+    if (!cf) cf = await createCase();
+    setCall({ active: true, ended: false, lines: [] });
+    showToast("info", "📞 Calling supplier — translating live…");
+    await fetch(`${API}/api/translate/demo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseId: cf.caseId }),
+    });
   }
 
   async function captureAsFact() {
@@ -315,6 +363,7 @@ export default function App() {
     if (!caseFile) return;
     setIsCorrecing(true);
     showToast("info", "🖥️ Starting Computer Use agent…");
+    setAgentView({ active: true, frame: null, url: "http://localhost:5174", steps: ["Launching browser…"], done: false });
     await fetch(`${API}/api/cases/${caseFile.caseId}/correct`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -535,8 +584,12 @@ export default function App() {
 
           {/* Controls */}
           <div className="call-controls">
+            <button className="btn primary" onClick={startCall} id="callSupplierBtn" disabled={call.active}>
+              <span className="icon">📞</span>
+              {call.active ? "Call in progress…" : "Call Supplier (Live Translate)"}
+            </button>
             {!messageLoaded ? (
-              <button className="btn primary" onClick={loadMessage} id="loadMessageBtn">
+              <button className="btn" onClick={loadMessage} id="loadMessageBtn">
                 <span className="icon">📧</span>
                 Load Sender Message
               </button>
@@ -795,6 +848,90 @@ export default function App() {
                 ✓ Approve &amp; Submit
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Live Call (Live Translate) ===== */}
+      {(call.active || call.ended) && (
+        <div
+          style={{
+            position: "fixed", left: 20, bottom: 20, width: 420, maxWidth: "calc(100vw - 40px)",
+            background: "var(--bg-elevated, #0f1420)", border: "1px solid var(--border, #22304a)",
+            borderRadius: 12, boxShadow: "0 20px 60px rgba(0,0,0,0.55)", overflow: "hidden", zIndex: 50,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--border, #22304a)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", fontWeight: 600 }}>
+              <span>📞 Call — Shenzhen supplier</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.58rem", color: call.ended ? "var(--text-muted, #6b7891)" : "#ef4444" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: call.ended ? "#6b7891" : "#ef4444", display: "inline-block" }} />
+                {call.ended ? "ENDED" : "LIVE · translating"}
+              </span>
+            </div>
+            <button onClick={() => setCall({ active: false, ended: false, lines: [] })} style={{ background: "none", border: "none", color: "var(--text-muted, #7c89a3)", cursor: "pointer", fontSize: "0.9rem" }}>✕</button>
+          </div>
+          <div style={{ maxHeight: 300, overflowY: "auto", padding: "0.6rem 0.7rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {call.lines.length === 0 ? (
+              <div style={{ color: "var(--text-muted, #6b7891)", fontSize: "0.72rem", textAlign: "center", padding: "0.5rem" }}>Connecting…</div>
+            ) : (
+              call.lines.map((l, i) => (
+                <div key={i} style={{ alignSelf: l.direction === "in" ? "flex-start" : "flex-end", maxWidth: "88%" }}>
+                  <div style={{ fontSize: "0.55rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted, #64708a)", marginBottom: 2 }}>
+                    {l.direction === "in" ? "🇨🇳 supplier (original)" : "🇬🇧 live translation"}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", lineHeight: 1.4, padding: "0.4rem 0.6rem", borderRadius: 10, background: l.direction === "in" ? "rgba(255,255,255,0.05)" : "rgba(59,130,246,0.16)", color: "var(--text, #dfe6f2)" }}>
+                    {l.text}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== Live Agent Screen (Computer Use) ===== */}
+      {agentView.active && (
+        <div
+          style={{
+            position: "fixed", right: 20, bottom: 20, width: 460, maxWidth: "calc(100vw - 40px)",
+            background: "var(--bg-elevated, #0f1420)", border: "1px solid var(--border, #22304a)",
+            borderRadius: 12, boxShadow: "0 20px 60px rgba(0,0,0,0.55)", overflow: "hidden", zIndex: 50,
+          }}
+        >
+          {/* title bar */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid var(--border, #22304a)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "0.8rem", fontWeight: 600 }}>
+              <span>🖥️ Agent Screen</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "0.58rem", color: agentView.done ? "var(--success, #34d399)" : "#f59e0b" }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: agentView.done ? "#34d399" : "#f59e0b", display: "inline-block" }} />
+                {agentView.done ? "DONE" : "LIVE"}
+              </span>
+            </div>
+            <button onClick={() => setAgentView((v) => ({ ...v, active: false }))} style={{ background: "none", border: "none", color: "var(--text-muted, #7c89a3)", cursor: "pointer", fontSize: "0.9rem" }}>✕</button>
+          </div>
+          {/* browser url bar */}
+          <div style={{ padding: "0.35rem 0.6rem", fontSize: "0.65rem", fontFamily: "monospace", color: "var(--text-secondary, #9aa7bf)", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid var(--border, #22304a)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            🔒 {agentView.url || "customs portal"}
+          </div>
+          {/* streamed browser screenshot, or a placeholder in demo mode */}
+          <div style={{ background: "#0a0d14", minHeight: 180 }}>
+            {agentView.frame ? (
+              <img src={agentView.frame} alt="agent browser view" style={{ display: "block", width: "100%" }} />
+            ) : (
+              <div style={{ padding: "1.5rem 1.25rem", textAlign: "center", color: "var(--text-muted, #6b7891)", fontSize: "0.72rem", lineHeight: 1.6 }}>
+                The agent is operating the customs portal.<br />
+                <span style={{ opacity: 0.7 }}>Live screenshots stream here in live mode (set <code>GEMINI_API_KEY</code> + <code>COMPUTER_USE_MODE=live</code>).</span>
+              </div>
+            )}
+          </div>
+          {/* action feed */}
+          <div style={{ maxHeight: 120, overflowY: "auto", padding: "0.5rem 0.6rem", borderTop: "1px solid var(--border, #22304a)", fontSize: "0.68rem" }}>
+            {agentView.steps.map((s, i) => (
+              <div key={i} style={{ color: i === agentView.steps.length - 1 ? "var(--text, #dfe6f2)" : "var(--text-muted, #64708a)", padding: "0.1rem 0" }}>
+                <span style={{ opacity: 0.5 }}>›</span> {s}
+              </div>
+            ))}
           </div>
         </div>
       )}

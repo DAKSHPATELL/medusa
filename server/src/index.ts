@@ -305,8 +305,8 @@ app.post<{ Params: { caseId: string } }>(
     const { caseId } = req.params;
 
     try {
+      // rejectSubmit already broadcasts `correction_rejected` — don't re-emit.
       await rejectSubmit(caseId);
-      broadcast("correction_rejected", { caseId });
       markSessionIdle(caseId);
       return { status: "rejected" };
     } catch (e: any) {
